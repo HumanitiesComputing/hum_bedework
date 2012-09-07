@@ -1,0 +1,6 @@
+name = Humanities Bedework
+description = Displays calendar information from IT Services Bedework calendar.
+core = 7.x
+version = 7.x-1.x-dev
+stylesheets[all][] = hum_bedework.css
+configure = admin/config/content/hum_bedework

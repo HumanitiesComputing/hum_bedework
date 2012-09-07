@@ -1,0 +1,296 @@
+<?php
+
+require_once('iCalcreator.class.php');
+
+/**
+ * Implements hook_help
+ *
+ * Displays help and module information
+ *
+ * @param path
+ *   Which path of the site we're using to display help
+ * @param arg
+ *   Array that holds the current path as returned from arg() function
+ */
+function hum_bedework_help($path, $arg) {
+  switch ($path) {
+    case "admin/help#hum_bedework":
+      return '<p>' . t("Test Test") . '</p>';
+  }
+}
+
+/**
+ * Implements hook_menu()
+ */
+function hum_bedework_menu() {
+  $items = array();
+
+  $items['admin/config/content/hum_bedework'] = array(
+    'title' => 'Bedework Config',
+    'description' => 'Configuration for Bedework module',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('hum_bedework_form'),
+    'access arguments' => array('access administration pages'),
+    'type' => MENU_NORMAL_ITEM,
+  );
+
+  $items['calendar/details/%'] = array(
+    'title' => 'Event Details',
+    'page callback' => 'hum_bedework_details_page',
+    'page arguments' => array(2),
+    'access arguments' => array('access content'),
+  );
+
+  return $items;
+}
+
+
+/**
+ * Page callback: Bedework settings
+ *
+ * @see hum_bedework_menu
+ */
+function hum_bedework_form($form, &$form_state) {
+  $form['hum_bedework_api_key'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Bedework API Key'),
+    '#default_value' => variable_get('hum_bedework_api_key',""),
+    '#size' => 32,
+    '#description' => t('The API key to use for the bedework widget request.'),
+    '#required' => TRUE,
+  );
+
+  return system_settings_form($form);
+}
+
+/**
+ * Impliments hook_block_info().
+ */
+function hum_bedework_block_info() {
+  $blocks['hum_bedework'] = array(
+    'info' => t('Bedework full calendar block'),
+    'cache' => DRUPAL_CACHE_PER_ROLE,
+  );
+  return $blocks;
+}
+
+/**
+ * Impliments hook_block_view().
+ *
+ * Prepares the contents of the block
+ */
+function hum_bedework_block_view($delta = '') {
+  switch($delta){
+    case 'hum_bedework':
+      $block['subject'] = t('Main Calendar');
+      if (user_access('access content')) {
+        $caldat = hum_bedework_get_cal_data(variable_get('hum_bedework_api_key',''),'768');
+        
+        $table = array(
+          'header' => array(
+            'Date / Time',
+            'Title / Location',
+            'Description'
+          ),
+          'rows' => array(),
+          'empty' => 'No Events Found'
+        );
+
+        foreach ($caldat as $cal){
+          $start_ts = mktime(
+            $cal['st_hour'],$cal['st_min'],$cal['st_sec'],
+            $cal['st_month'],$cal['st_day'],$cal['st_year']
+          );
+          $end_ts = mktime(
+            $cal['et_hour'],$cal['et_min'],$cal['et_sec'],
+            $cal['et_month'],$cal['et_day'],$cal['et_year']
+          );
+          
+          $date = date("F j, Y", $start_ts);
+          $stime = date("g:i a", $start_ts);
+          $etime = date("g:i a", $end_ts);
+          
+          $desc = str_replace("\\n","<br />",mb_substr($cal['description'],0,200,'utf-8'))
+                  . (mb_strlen($cal['description'],'utf-8') > 200 ? "..." : "");
+
+          $table['rows'][] = array(
+            'data' => array(
+              array(
+                'data'=>"$date<br />$stime - $etime",
+                'class'=>'bedework_datetime'
+              ),
+              l($cal['title'], "calendar/details/".urlencode($cal['uid'])).'<br />'.$cal['location'],
+              $desc
+            )
+          );
+        }
+        $block['content'] = theme('table',$table);
+      }
+  }
+  return $block;
+}
+
+function hum_bedework_details_page($guid) {
+  $cal = hum_bedework_get_cal_event($guid);
+
+  $table = array(
+    'rows' => array(),
+    'empty' => 'Event not found'
+  );
+  
+  $start_ts = mktime(
+    $cal['st_hour'],$cal['st_min'],$cal['st_sec'],
+    $cal['st_month'],$cal['st_day'],$cal['st_year']
+  );
+  $end_ts = mktime(
+    $cal['et_hour'],$cal['et_min'],$cal['et_sec'],
+    $cal['et_month'],$cal['et_day'],$cal['et_year']
+  );
+  
+  $date = date("F j, Y", $start_ts);
+  $stime = date("g:i a", $start_ts);
+  $etime = date("g:i a", $end_ts);
+  
+  $desc = str_replace("\\n","<br />",$cal['description']);
+
+  $table['rows'][] = array(
+    'data' => array(
+      array('data'=>'Title','class'=>'bedework_label'),
+      $cal['title']
+    )
+  );
+
+  $table['rows'][] = array(
+    'data' => array(
+      array('data'=>'When','class'=>'bedework_label'),
+      "$date, $stime - $etime"
+    )
+  );
+
+  $table['rows'][] = array(
+    'data' => array(
+      array('data'=>'Where','class'=>'bedework_label'),
+      $cal['location']
+    )
+  );
+
+  $table['rows'][] = array(
+    'data' => array(
+      array('data'=>'Description','class'=>'bedework_label'),
+      $desc
+    )
+  );
+
+  return '<p>' . l('Back to main calendar','calendar') . '</p>' . theme('table',$table);
+}
+
+/**
+ * Queries the bedework server for a list of events given a calendar
+ * api key and id
+ *
+ * @return An array of event data arrays
+ */
+function hum_bedework_get_cal_data($key,$id) {
+  // TODO: perform this HTTP fetch using drupal http features so it works
+  // through the proxy modules, etc
+  $config = array(
+    'unique_id' => 'hum_bedework',
+    'url' => "http://event.uchicago.edu/widgets/ics.php?key=$key&id=$id"
+  );
+  $vcalendar = new vcalendar($config);
+  $vcalendar->parse();
+
+  $caldat = array();
+
+  while ($e = $vcalendar->getComponent('vevent')) {
+    $caldat[] = hum_bedework_parse_cal_event($e);;
+  }
+
+  return $caldat;
+}
+
+/**
+ * Queries the bedework server for a specific event based on a
+ * bedework guid
+ *
+ * @return An event data array
+ */
+function hum_bedework_get_cal_event($guid) {
+  $config = array(
+    'unique_id' => 'hum_bedework',
+    'url' => "http://event.uchicago.edu/cal/misc/export.gdo?b=de&subid=11&calPath=%2Fpublic%2FuChicago&guid={$guid}&recurrenceId=20120903T183000Z&nocache=no&contentName={$guid}.ics"
+  );
+
+  $vcalendar = new vcalendar($config);
+  $vcalendar->parse();
+
+  $event = $vcalendar->getComponent('vevent');
+
+  if ($event) {
+    return hum_bedework_parse_cal_event($event);
+  } else {
+    // TODO: problem
+    return array();
+  }
+}
+
+/**
+ * Parse an iCalendar array into a bedework event data array.
+ * 
+ * @param e An iCalendar PHP object produced by iCalcreator
+ *
+ * @return A bedework event data array 
+ */
+function hum_bedework_parse_cal_event($e) {
+    $el = array();
+
+    $el['title'] = $e->summary['value'];
+    $el['location'] = $e->location['value'];
+    $el['uid'] = $e->uid['value'];
+
+    if (is_array($e->description)) {
+      $el['description'] = $e->description[0]['value'];
+    } else {
+      $el['description'] = "";
+    }
+
+    if (is_array($e->dtstart)) {
+      $el['st_year'] = $e->dtstart['value']['year'];
+      $el['st_month'] = $e->dtstart['value']['month'];
+      $el['st_day'] = $e->dtstart['value']['day'];
+      $el['st_hour'] = $e->dtstart['value']['hour'];
+      $el['st_min'] = $e->dtstart['value']['min'];
+      $el['st_sec'] = $e->dtstart['value']['sec'];
+    } else {
+      // TODO: this is a big problem
+    }
+
+    if (is_array($e->dtend)) {
+      $el['et_year'] = $e->dtend['value']['year'];
+      $el['et_month'] = $e->dtend['value']['month'];
+      $el['et_day'] = $e->dtend['value']['day'];
+      $el['et_hour'] = $e->dtend['value']['hour'];
+      $el['et_min'] = $e->dtend['value']['min'];
+      $el['et_sec'] = $e->dtend['value']['sec'];
+    } else if (is_array($e->duration)) {
+      // Calculate end time based on duration
+      $ts = mktime(
+        $el['st_hour']+$e->duration['value']['hour'],
+        $el['st_min']+$e->duration['value']['min'],
+        $el['st_sec']+$e->duration['value']['sec'],
+        $el['st_month'],
+        $el['st_day'],
+        $el['st_year']
+      );
+      $el['et_year'] = date("Y",$ts);
+      $el['et_month'] = date("m",$ts);
+      $el['et_day'] = date("d",$ts);
+      $el['et_hour'] = date("H",$ts);
+      $el['et_min'] = date("i",$ts);
+      $el['et_sec'] = date("s",$ts);
+    } else {
+      // TODO: problem!
+    }
+    return $el;
+}
+
