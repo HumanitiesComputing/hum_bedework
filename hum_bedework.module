@@ -60,6 +60,90 @@ function hum_bedework_form($form, &$form_state) {
     '#required' => TRUE,
   );
 
+  $form['hum_bedework_widget_id'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Bedework Widget Id'),
+    '#default_value' => variable_get('hum_bedework_widget_id',""),
+    '#size' => 5,
+    '#description' => t('The iCal widget id to use for the main calendar.'),
+    '#required' => TRUE,
+  );
+  
+  $form['hum_bedework_main'] = array (
+    '#type' => 'fieldset',
+    '#title' => t('Main Calendar Settings'),
+    '#collapsible' => TRUE,
+    '#collapsed' => FALSE,
+  );
+
+  $form['hum_bedework_main']['hum_bedework_main_event_count'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Event Count'),
+    '#default_value' => variable_get('hum_bedework_main_event_count',"100"),
+    '#size' => 5,
+    '#description' => t('The maximum number of future events to display on the main calendar.'),
+    '#required' => TRUE,
+  );
+
+  $form['hum_bedework_main']['hum_bedework_main_desc_trim'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Description Trim'),
+    '#default_value' => variable_get('hum_bedework_main_desc_trim',"200"),
+    '#size' => 5,
+    '#description' => t('The maximum number of characters to show for descriptions on the main calendar.'),
+    '#required' => TRUE,
+  );
+
+  $form['hum_bedework_main']['hum_bedework_main_date_format'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Date Format'),
+    '#default_value' => variable_get('hum_bedework_main_date_format',"F d, Y"),
+    '#size' => 40,
+    '#description' => t('Date format to use for the main calendar. See php date formats for more info.'),
+    '#required' => TRUE,
+  );
+  $form['hum_bedework_main']['hum_bedework_main_time_format'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Time Format'),
+    '#default_value' => variable_get('hum_bedework_main_time_format',"H:i A"),
+    '#size' => 40,
+    '#description' => t('Time format to use for the main calendar. See php time formats for more info.'),
+    '#required' => TRUE,
+  );
+
+  $form['hum_bedework_teaser'] = array (
+    '#type' => 'fieldset',
+    '#title' => t('Teaser Block Settings'),
+    '#collapsible' => TRUE,
+    '#collapsed' => FALSE,
+  );
+
+  $form['hum_bedework_teaser']['hum_bedework_teaser_event_count'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Event Count'),
+    '#default_value' => variable_get('hum_bedework_teaser_event_count',"5"),
+    '#size' => 5,
+    '#description' => t('The maximum number of future events to display on the calendar teaser.'),
+    '#required' => TRUE,
+  );
+
+  $form['hum_bedework_teaser']['hum_bedework_teaser_date_format'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Date Format'),
+    '#default_value' => variable_get('hum_bedework_teaser_date_format',"D\<\b\r\/\>M. d"),
+    '#size' => 40,
+    '#description' => t('Date format to use for the calendar teaser. See php date formats for more info.'),
+    '#required' => TRUE,
+  );
+  $form['hum_bedework_teaser']['hum_bedework_teaser_time_format'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Time Format'),
+    '#default_value' => variable_get('hum_bedework_teaser_time_format',"H:i A"),
+    '#size' => 40,
+    '#description' => t('Time format to use for the calendar teaser. See php time formats for more info.'),
+    '#required' => TRUE,
+  );
+
   return system_settings_form($form);
 }
 
@@ -67,8 +151,12 @@ function hum_bedework_form($form, &$form_state) {
  * Impliments hook_block_info().
  */
 function hum_bedework_block_info() {
-  $blocks['hum_bedework'] = array(
-    'info' => t('Bedework full calendar block'),
+  $blocks['hum_bedework_main'] = array(
+    'info' => t('Bedework main calendar block'),
+    'cache' => DRUPAL_CACHE_PER_ROLE,
+  );
+  $blocks['hum_bedework_teaser'] = array(
+    'info' => t('Bedework teaser block'),
     'cache' => DRUPAL_CACHE_PER_ROLE,
   );
   return $blocks;
@@ -81,53 +169,111 @@ function hum_bedework_block_info() {
  */
 function hum_bedework_block_view($delta = '') {
   switch($delta){
-    case 'hum_bedework':
+    case 'hum_bedework_main':
       $block['subject'] = t('Main Calendar');
       if (user_access('access content')) {
-        $caldat = hum_bedework_get_cal_data(variable_get('hum_bedework_api_key',''),'768');
-        
-        $table = array(
-          'header' => array(
-            'Date / Time',
-            'Title / Location',
-            'Description'
-          ),
-          'rows' => array(),
-          'empty' => 'No Events Found'
-        );
-
-        foreach ($caldat as $cal){
-          $start_ts = mktime(
-            $cal['st_hour'],$cal['st_min'],$cal['st_sec'],
-            $cal['st_month'],$cal['st_day'],$cal['st_year']
-          );
-          $end_ts = mktime(
-            $cal['et_hour'],$cal['et_min'],$cal['et_sec'],
-            $cal['et_month'],$cal['et_day'],$cal['et_year']
-          );
-          
-          $date = date("F j, Y", $start_ts);
-          $stime = date("g:i a", $start_ts);
-          $etime = date("g:i a", $end_ts);
-          
-          $desc = str_replace("\\n","<br />",mb_substr($cal['description'],0,200,'utf-8'))
-                  . (mb_strlen($cal['description'],'utf-8') > 200 ? "..." : "");
-
-          $table['rows'][] = array(
-            'data' => array(
-              array(
-                'data'=>"$date<br />$stime - $etime",
-                'class'=>'bedework_datetime'
-              ),
-              l($cal['title'], "calendar/details/".urlencode($cal['uid'])).'<br />'.$cal['location'],
-              $desc
-            )
-          );
-        }
-        $block['content'] = theme('table',$table);
+        $block['content'] = theme('table',hum_bedework_block_generate_main());
       }
+      break;
+    case 'hum_bedework_teaser':
+      $block['subject'] = t('Featured Events');
+      if (user_access('access content')) {
+        $block['content'] = theme('table',hum_bedework_block_generate_teaser());
+      }
+      break;
   }
   return $block;
+}
+
+/**
+ *
+ */
+function hum_bedework_block_generate_main() {
+  $caldat = hum_bedework_get_cal_data(variable_get('hum_bedework_api_key',''),variable_get('hum_bedework_widget_id',''));
+
+  $table = array(
+    'header' => array(
+      'Date / Time',
+      'Title / Location',
+      'Description'
+    ),
+    'rows' => array(),
+    'empty' => 'No Events Found'
+  );
+        
+  for ($i = 0; $i < min(count($caldat),variable_get('hum_bedework_main_event_count',count($caldat))); $i++){
+    $cal = $caldat[$i];
+
+    $start_ts = mktime(
+      $cal['st_hour'],$cal['st_min'],$cal['st_sec'],
+      $cal['st_month'],$cal['st_day'],$cal['st_year']
+    );
+    $end_ts = mktime(
+      $cal['et_hour'],$cal['et_min'],$cal['et_sec'],
+      $cal['et_month'],$cal['et_day'],$cal['et_year']
+    );
+  
+    $date = date(variable_get('hum_bedework_main_date_format','F j, Y'), $start_ts);
+    $stime = date(variable_get('hum_bedework_main_time_format','g:i a'), $start_ts);
+    $etime = date(variable_get('hum_bedework_main_time_format','g:i a'), $end_ts);
+  
+    $desc = str_replace("\\n","<br />",mb_substr($cal['description'],0,variable_get('hum_bedework_main_desc_trim',"200"),'utf-8'))
+            . (mb_strlen($cal['description'],'utf-8') > variable_get('hum_bedework_main_desc_trim',"200") ? "..." : "");
+
+    $table['rows'][] = array(
+      'data' => array(
+        array(
+          'data'=>"$date<br />$stime - $etime",
+          'class'=>'bedework_datetime'
+        ),
+        l($cal['title'], "calendar/details/".urlencode($cal['uid'])).'<br />'.$cal['location'],
+        $desc
+      )
+    );
+  }
+
+  return $table;
+}
+
+/**
+ *
+ */
+function hum_bedework_block_generate_teaser() {
+  $caldat = hum_bedework_get_cal_data(variable_get('hum_bedework_api_key',''),variable_get('hum_bedework_widget_id',''));
+
+  $table = array(
+    'rows' => array(),
+    'empty' => 'No Events Found'
+  );
+        
+  for ($i = 0; $i < min(count($caldat),variable_get('hum_bedework_teaser_event_count',count($caldat))); $i++){
+    $cal = $caldat[$i];
+
+    $start_ts = mktime(
+      $cal['st_hour'],$cal['st_min'],$cal['st_sec'],
+      $cal['st_month'],$cal['st_day'],$cal['st_year']
+    );
+    $end_ts = mktime(
+      $cal['et_hour'],$cal['et_min'],$cal['et_sec'],
+      $cal['et_month'],$cal['et_day'],$cal['et_year']
+    );
+  
+    $date = date(variable_get('hum_bedework_teaser_date_format','D\<\b\r\/\>M. d'), $start_ts);
+    $stime = date(variable_get('hum_bedework_teaser_time_format','g:i a'), $start_ts);
+    $etime = date(variable_get('hum_bedework_teaser_time_format','g:i a'), $end_ts);
+  
+    $table['rows'][] = array(
+      'data' => array(
+        array(
+          'data'=>"$date",
+          'class'=>'bedework_datetime'
+        ),
+        l($cal['title'], "calendar/details/".urlencode($cal['uid']))."<br />$stime - $etime<br />{$cal['location']}"
+      )
+    );
+  }
+
+  return $table;
 }
 
 function hum_bedework_details_page($guid) {
