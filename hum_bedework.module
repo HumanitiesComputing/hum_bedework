@@ -2,6 +2,16 @@
 
 require_once('iCalcreator.class.php');
 
+define('HUM_BEDEWORK_DEFAULT_MAIN_DATE_FORMAT','F d, Y');
+define('HUM_BEDEWORK_DEFAULT_MAIN_TIME_FORMAT','h:i A');
+define('HUM_BEDEWORK_DEFAULT_TEASER_DATE_FORMAT','D, M. d');
+define('HUM_BEDEWORK_DEFAULT_TEASER_TIME_FORMAT','h:i A');
+
+define('HUM_BEDEWORK_DEFAULT_MAIN_DESC_TRIM','200');
+define('HUM_BEDEWORK_DEFAULT_MAIN_EVENT_COUNT','30');
+define('HUM_BEDEWORK_DEFAULT_TEASER_EVENT_COUNT','5');
+define('HUM_BEDEWORK_DEFAULT_TEASER_STYLE','list');
+
 /**
  * Implements hook_help
  *
@@ -60,15 +70,6 @@ function hum_bedework_form($form, &$form_state) {
     '#required' => TRUE,
   );
 
-  $form['hum_bedework_widget_id'] = array(
-    '#type' => 'textfield',
-    '#title' => t('Bedework Widget Id'),
-    '#default_value' => variable_get('hum_bedework_widget_id',""),
-    '#size' => 5,
-    '#description' => t('The iCal widget id to use for the main calendar.'),
-    '#required' => TRUE,
-  );
-  
   $form['hum_bedework_main'] = array (
     '#type' => 'fieldset',
     '#title' => t('Main Calendar Settings'),
@@ -76,10 +77,19 @@ function hum_bedework_form($form, &$form_state) {
     '#collapsed' => FALSE,
   );
 
+  $form['hum_bedework_main']['hum_bedework_main_widget_id'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Bedework Widget Id'),
+    '#default_value' => variable_get('hum_bedework_main_widget_id',""),
+    '#size' => 5,
+    '#description' => t('The iCal widget id to use for the main calendar.'),
+    '#required' => TRUE,
+  );
+
   $form['hum_bedework_main']['hum_bedework_main_event_count'] = array(
     '#type' => 'textfield',
     '#title' => t('Event Count'),
-    '#default_value' => variable_get('hum_bedework_main_event_count',"100"),
+    '#default_value' => variable_get('hum_bedework_main_event_count',HUM_BEDEWORK_DEFAULT_MAIN_EVENT_COUNT),
     '#size' => 5,
     '#description' => t('The maximum number of future events to display on the main calendar.'),
     '#required' => TRUE,
@@ -88,7 +98,7 @@ function hum_bedework_form($form, &$form_state) {
   $form['hum_bedework_main']['hum_bedework_main_desc_trim'] = array(
     '#type' => 'textfield',
     '#title' => t('Description Trim'),
-    '#default_value' => variable_get('hum_bedework_main_desc_trim',"200"),
+    '#default_value' => variable_get('hum_bedework_main_desc_trim',HUM_BEDEWORK_DEFAULT_MAIN_DESC_TRIM),
     '#size' => 5,
     '#description' => t('The maximum number of characters to show for descriptions on the main calendar.'),
     '#required' => TRUE,
@@ -97,7 +107,7 @@ function hum_bedework_form($form, &$form_state) {
   $form['hum_bedework_main']['hum_bedework_main_date_format'] = array(
     '#type' => 'textfield',
     '#title' => t('Date Format'),
-    '#default_value' => variable_get('hum_bedework_main_date_format',"F d, Y"),
+    '#default_value' => variable_get('hum_bedework_main_date_format',HUM_BEDEWORK_DEFAULT_MAIN_DATE_FORMAT),
     '#size' => 40,
     '#description' => t('Date format to use for the main calendar. See php date formats for more info.'),
     '#required' => TRUE,
@@ -105,7 +115,7 @@ function hum_bedework_form($form, &$form_state) {
   $form['hum_bedework_main']['hum_bedework_main_time_format'] = array(
     '#type' => 'textfield',
     '#title' => t('Time Format'),
-    '#default_value' => variable_get('hum_bedework_main_time_format',"H:i A"),
+    '#default_value' => variable_get('hum_bedework_main_time_format',HUM_BEDEWORK_DEFAULT_MAIN_TIME_FORMAT),
     '#size' => 40,
     '#description' => t('Time format to use for the main calendar. See php time formats for more info.'),
     '#required' => TRUE,
@@ -118,10 +128,29 @@ function hum_bedework_form($form, &$form_state) {
     '#collapsed' => FALSE,
   );
 
+  $form['hum_bedework_teaser']['hum_bedework_teaser_widget_id'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Bedework Widget Id'),
+    '#default_value' => variable_get('hum_bedework_teaser_widget_id',""),
+    '#size' => 5,
+    '#description' => t('The iCal widget id to use for the calendar teaser.'),
+    '#required' => TRUE,
+  );
+  
+  $styles = array('table'=>'Table','list'=>'List');
+  $form['hum_bedework_teaser']['hum_bedework_teaser_style'] = array(
+    '#type' => 'select',
+    '#title' => t('Teaser Style'),
+    '#default_value' => variable_get('hum_bedework_teaser_style',HUM_BEDEWORK_DEFAULT_TEASER_STYLE),
+    '#options' => $styles,
+    '#description' => t('The style to use for the calendar teaser.'),
+    '#required' => TRUE,
+  );
+
   $form['hum_bedework_teaser']['hum_bedework_teaser_event_count'] = array(
     '#type' => 'textfield',
     '#title' => t('Event Count'),
-    '#default_value' => variable_get('hum_bedework_teaser_event_count',"5"),
+    '#default_value' => variable_get('hum_bedework_teaser_event_count',HUM_BEDEWORK_DEFAULT_TEASER_EVENT_COUNT),
     '#size' => 5,
     '#description' => t('The maximum number of future events to display on the calendar teaser.'),
     '#required' => TRUE,
@@ -130,7 +159,7 @@ function hum_bedework_form($form, &$form_state) {
   $form['hum_bedework_teaser']['hum_bedework_teaser_date_format'] = array(
     '#type' => 'textfield',
     '#title' => t('Date Format'),
-    '#default_value' => variable_get('hum_bedework_teaser_date_format',"D\<\b\r\/\>M. d"),
+    '#default_value' => variable_get('hum_bedework_teaser_date_format',HUM_BEDEWORK_DEFAULT_TEASER_DATE_FORMAT),
     '#size' => 40,
     '#description' => t('Date format to use for the calendar teaser. See php date formats for more info.'),
     '#required' => TRUE,
@@ -138,7 +167,7 @@ function hum_bedework_form($form, &$form_state) {
   $form['hum_bedework_teaser']['hum_bedework_teaser_time_format'] = array(
     '#type' => 'textfield',
     '#title' => t('Time Format'),
-    '#default_value' => variable_get('hum_bedework_teaser_time_format',"H:i A"),
+    '#default_value' => variable_get('hum_bedework_teaser_time_format',HUM_BEDEWORK_DEFAULT_TEASER_TIME_FORMAT),
     '#size' => 40,
     '#description' => t('Time format to use for the calendar teaser. See php time formats for more info.'),
     '#required' => TRUE,
@@ -178,7 +207,14 @@ function hum_bedework_block_view($delta = '') {
     case 'hum_bedework_teaser':
       $block['subject'] = t('Featured Events');
       if (user_access('access content')) {
-        $block['content'] = theme('table',hum_bedework_block_generate_teaser());
+        switch (variable_get('hum_bedework_teaser_style',HUM_BEDEWORK_DEFAULT_TEASER_STYLE)) {
+          case 'table':
+            $block['content'] = theme('table',hum_bedework_block_generate_teaser_table());
+            break;
+          case 'list':
+            $block['content'] = theme('item_list',hum_bedework_block_generate_teaser_list());
+            break;
+        }
       }
       break;
   }
@@ -189,7 +225,7 @@ function hum_bedework_block_view($delta = '') {
  *
  */
 function hum_bedework_block_generate_main() {
-  $caldat = hum_bedework_get_cal_data(variable_get('hum_bedework_api_key',''),variable_get('hum_bedework_widget_id',''));
+  $caldat = hum_bedework_get_cal_data(variable_get('hum_bedework_api_key',''),variable_get('hum_bedework_main_widget_id',''));
 
   $table = array(
     'header' => array(
@@ -204,26 +240,18 @@ function hum_bedework_block_generate_main() {
   for ($i = 0; $i < min(count($caldat),variable_get('hum_bedework_main_event_count',count($caldat))); $i++){
     $cal = $caldat[$i];
 
-    $start_ts = mktime(
-      $cal['st_hour'],$cal['st_min'],$cal['st_sec'],
-      $cal['st_month'],$cal['st_day'],$cal['st_year']
-    );
-    $end_ts = mktime(
-      $cal['et_hour'],$cal['et_min'],$cal['et_sec'],
-      $cal['et_month'],$cal['et_day'],$cal['et_year']
-    );
+    $timevals = hum_bedework_sanitize_time($cal,'main');
   
-    $date = date(variable_get('hum_bedework_main_date_format','F j, Y'), $start_ts);
-    $stime = date(variable_get('hum_bedework_main_time_format','g:i a'), $start_ts);
-    $etime = date(variable_get('hum_bedework_main_time_format','g:i a'), $end_ts);
-  
+    $time = $timevals['time'];
+    $date = $timevals['sdate_dur'];
+
     $desc = str_replace("\\n","<br />",mb_substr($cal['description'],0,variable_get('hum_bedework_main_desc_trim',"200"),'utf-8'))
             . (mb_strlen($cal['description'],'utf-8') > variable_get('hum_bedework_main_desc_trim',"200") ? "..." : "");
 
     $table['rows'][] = array(
       'data' => array(
         array(
-          'data'=>"$date<br />$stime - $etime",
+          'data'=>"$date<br />$time",
           'class'=>'bedework_datetime'
         ),
         l($cal['title'], "calendar/details/".urlencode($cal['uid'])).'<br />'.$cal['location'],
@@ -236,12 +264,13 @@ function hum_bedework_block_generate_main() {
 }
 
 /**
- *
+ * Generates a teaser table data array suitable for passing to theme_table
  */
-function hum_bedework_block_generate_teaser() {
-  $caldat = hum_bedework_get_cal_data(variable_get('hum_bedework_api_key',''),variable_get('hum_bedework_widget_id',''));
+function hum_bedework_block_generate_teaser_table() {
+  $caldat = hum_bedework_get_cal_data(variable_get('hum_bedework_api_key',''),variable_get('hum_bedework_main_widget_id',''));
 
   $table = array(
+    'header' => array(),
     'rows' => array(),
     'empty' => 'No Events Found'
   );
@@ -249,31 +278,133 @@ function hum_bedework_block_generate_teaser() {
   for ($i = 0; $i < min(count($caldat),variable_get('hum_bedework_teaser_event_count',count($caldat))); $i++){
     $cal = $caldat[$i];
 
-    $start_ts = mktime(
-      $cal['st_hour'],$cal['st_min'],$cal['st_sec'],
-      $cal['st_month'],$cal['st_day'],$cal['st_year']
-    );
-    $end_ts = mktime(
-      $cal['et_hour'],$cal['et_min'],$cal['et_sec'],
-      $cal['et_month'],$cal['et_day'],$cal['et_year']
-    );
-  
-    $date = date(variable_get('hum_bedework_teaser_date_format','D\<\b\r\/\>M. d'), $start_ts);
-    $stime = date(variable_get('hum_bedework_teaser_time_format','g:i a'), $start_ts);
-    $etime = date(variable_get('hum_bedework_teaser_time_format','g:i a'), $end_ts);
-  
+    $timevals = hum_bedework_sanitize_time($cal,'teaser');
+    $time = $timevals['time']; 
+    $date = $timevals['sdate']; 
+
     $table['rows'][] = array(
       'data' => array(
         array(
           'data'=>"$date",
-          'class'=>'bedework_datetime'
+          'class'=>array('bedework_datetime')
         ),
-        l($cal['title'], "calendar/details/".urlencode($cal['uid']))."<br />$stime - $etime<br />{$cal['location']}"
-      )
+        array(
+          'data'=>l($cal['title'], "calendar/details/".urlencode($cal['uid']))."<br />$time<br />{$cal['location']}",
+          'class'=>array('bedework_titlelocation'),
+        )
+      ),
+      'class'=>array('bedework_event'),
     );
   }
 
   return $table;
+}
+
+/**
+ *
+ */
+function hum_bedework_sanitize_time($cal,$type) {
+    $ret = array();
+
+    if ($cal['st_exists']) {
+        if ($type == 'teaser') {
+            $ret['stime'] = date(variable_get('hum_bedework_teaser_time_format',HUM_BEDEWORK_DEFAULT_TEASER_TIME_FORMAT), $cal['st_ts']);
+            $ret['sdate'] = date(variable_get('hum_bedework_teaser_date_format',HUM_BEDEWORK_DEFAULT_TEASER_DATE_FORMAT), $cal['st_ts']);
+        } else {
+            $ret['stime'] = date(variable_get('hum_bedework_main_time_format',HUM_BEDEWORK_DEFAULT_MAIN_TIME_FORMAT), $cal['st_ts']);
+            $ret['sdate'] = date(variable_get('hum_bedework_main_date_format',HUM_BEDEWORK_DEFAULT_MAIN_DATE_FORMAT), $cal['st_ts']);
+        }
+    } else {
+        $ret['stime'] = "N/A";
+        $ret['sdate'] = "N/A";
+    }
+
+    if ($cal['et_exists']) {
+        if ($type == 'teaser') {
+            $ret['etime'] = date(variable_get('hum_bedework_teaser_time_format',HUM_BEDEWORK_DEFAULT_TEASER_TIME_FORMAT), $cal['et_ts']);
+            $ret['edate'] = date(variable_get('hum_bedework_teaser_date_format',HUM_BEDEWORK_DEFAULT_TEASER_DATE_FORMAT), $cal['et_ts_adj']);
+        } else {
+            $ret['etime'] = date(variable_get('hum_bedework_main_time_format',HUM_BEDEWORK_DEFAULT_MAIN_TIME_FORMAT), $cal['et_ts']);
+            $ret['edate'] = date(variable_get('hum_bedework_main_date_format',HUM_BEDEWORK_DEFAULT_MAIN_DATE_FORMAT), $cal['et_ts_adj']);
+        }
+    } else {
+        $ret['etime'] = "N/A";
+        $ret['edate'] = "N/A";
+    }
+
+    if ($cal['allday']) {
+        $ret['time'] = "All Day";
+    } else if ($cal['st_exists'] && $cal['et_exists']) {
+        if ($cal['samedate'] && $cal['sametime']) {
+            $ret['time'] = $ret['stime'];
+        } else {
+            $ret['time'] = $ret['stime'] . " - " . $ret['etime'];
+        }
+    } else if ($cal['st_exists'] && !$cal['et_exists']) {
+        $ret['time'] = $ret['stime'];
+    } else {
+        $ret['time'] = "N/A";
+    }
+
+    if ($cal['samedate']) {
+        $ret['duration'] = $ret['stime'];
+        $ret['sdate_dur'] = $ret['sdate'];
+    } else {
+        $ret['duration'] = $ret['stime'] . " - " . $ret['edate'];
+        $ret['sdate_dur'] = "Begins {$ret['sdate']}";
+
+        if ($cal['allday']) {
+          $ret['duration_datetime'] = "{$ret['sdate']} - {$ret['edate']} (All Day)";
+        } else {
+          $ret['duration_datetime'] = "{$ret['sdate']} {$ret['stime']} - {$ret['edate']} {$ret['etime']}";
+        }
+    }
+
+    return $ret;
+}
+
+
+
+/**
+ * Generates a teaser item list data array suitable for passing to theme_item_list
+ */
+function hum_bedework_block_generate_teaser_list() {
+  $caldat = hum_bedework_get_cal_data(variable_get('hum_bedework_api_key',''),variable_get('hum_bedework_main_widget_id',''));
+
+  $ret = array(
+    'items' => array(),
+    'empty' => 'No Events Found',
+    'type' => 'ol',
+    'class' => 'bedework_list_teaser',
+  );
+        
+  for ($i = 0; $i < min(count($caldat),variable_get('hum_bedework_teaser_event_count',count($caldat))); $i++){
+    $cal = $caldat[$i];
+
+    $timevals = hum_bedework_sanitize_time($cal,'teaser');
+    $time = $timevals['time'];
+    $date = $timevals['sdate']; 
+
+    $ret['items'][] = array(
+      'class'=>array('bedework_list_event'),
+      'children'=>array(
+          array(
+              'data'=>l($cal['title'], "calendar/details/".urlencode($cal['uid'])),
+              'class'=>array('bedework_list_title'),
+          ),
+          array(
+              'data'=>"<span class='bedework_list_date'>{$date}</span> <span class='bedework_list_time'>{$time}</span>",
+              'class'=>array('bedework_list_datetime'),
+          ),
+          array(
+              'data'=>$cal['location'],
+              'class'=>array('bedework_list_location'),
+          ),
+      )
+    );
+  }
+
+  return $ret;
 }
 
 function hum_bedework_details_page($guid) {
@@ -284,18 +415,7 @@ function hum_bedework_details_page($guid) {
     'empty' => 'Event not found'
   );
   
-  $start_ts = mktime(
-    $cal['st_hour'],$cal['st_min'],$cal['st_sec'],
-    $cal['st_month'],$cal['st_day'],$cal['st_year']
-  );
-  $end_ts = mktime(
-    $cal['et_hour'],$cal['et_min'],$cal['et_sec'],
-    $cal['et_month'],$cal['et_day'],$cal['et_year']
-  );
-  
-  $date = date("F j, Y", $start_ts);
-  $stime = date("g:i a", $start_ts);
-  $etime = date("g:i a", $end_ts);
+  $timevals = hum_bedework_sanitize_time($cal,'main');
   
   $desc = str_replace("\\n","<br />",$cal['description']);
 
@@ -309,7 +429,7 @@ function hum_bedework_details_page($guid) {
   $table['rows'][] = array(
     'data' => array(
       array('data'=>'When','class'=>'bedework_label'),
-      "$date, $stime - $etime"
+      $timevals['duration_datetime']
     )
   );
 
@@ -351,7 +471,7 @@ function hum_bedework_get_cal_data($key,$id) {
   while ($e = $vcalendar->getComponent('vevent')) {
     $caldat[] = hum_bedework_parse_cal_event($e);;
   }
-
+  
   return $caldat;
 }
 
@@ -400,43 +520,114 @@ function hum_bedework_parse_cal_event($e) {
       $el['description'] = "";
     }
 
+    var_dump($e);
+
+    $st = array();
+
     if (is_array($e->dtstart)) {
-      $el['st_year'] = $e->dtstart['value']['year'];
-      $el['st_month'] = $e->dtstart['value']['month'];
-      $el['st_day'] = $e->dtstart['value']['day'];
-      $el['st_hour'] = $e->dtstart['value']['hour'];
-      $el['st_min'] = $e->dtstart['value']['min'];
-      $el['st_sec'] = $e->dtstart['value']['sec'];
+      $el['st_exists'] = true;
+      
+      // Check if this is a full datetime or just a date. If a date, fill in 0s for time.
+      if (is_array($e->dtstart['params']) && array_key_exists('VALUE',$e->dtstart['params']) && $e->dtstart['params']['VALUE'] == "DATE") {
+        $st['hour'] = 0;
+        $st['min'] = 0;
+        $st['sec'] = 0;
+      } else {
+        $st['hour'] = $e->dtstart['value']['hour'];
+        $st['min'] = $e->dtstart['value']['min'];
+        $st['sec'] = $e->dtstart['value']['sec'];
+      }
+
+      $st['year'] = $e->dtstart['value']['year'];
+      $st['month'] = $e->dtstart['value']['month'];
+      $st['day'] = $e->dtstart['value']['day'];
+
+      $el['st_ts'] = mktime(
+        $st['hour'],$st['min'],$st['sec'],
+        $st['month'],$st['day'],$st['year']
+      );
     } else {
-      // TODO: this is a big problem
+      $el['st_exists'] = false;
+    }
+    
+    $et = array();
+    if (is_array($e->dtend)) {
+      if (is_array($e->dtend['params']) && array_key_exists('VALUE',$e->dtend['params']) && $e->dtend['params']['VALUE'] == "DATE") {
+        $et['hour'] = 0;
+        $et['min'] = 0;
+        $et['sec'] = 0;
+      } else {
+        $et['hour'] = $e->dtend['value']['hour'];
+        $et['min'] = $e->dtend['value']['min'];
+        $et['sec'] = $e->dtend['value']['sec'];
+      }
+      $et['year'] = $e->dtend['value']['year'];
+      $et['month'] = $e->dtend['value']['month'];
+      $et['day'] = $e->dtend['value']['day'];
+
+      $el['et_exists'] = true;
+
+      $el['et_ts'] = mktime(
+        $et['hour'],$et['min'],$et['sec'],
+        $et['month'],$et['day'],$et['year']
+      );
+
+      $el['et_ts_adj'] = mktime(
+        $et['hour'],$et['min'],$et['sec'],
+        $et['month'],$et['day']-1,$et['year']
+      );
+    } else if (is_array($e->duration) && $el['st_exists']) {
+      // Calculate end time based on duration
+      $et['hour'] = (array_key_exists('hour',$e->duration['value']) ? $st['hour']+$e->duration['value']['hour'] : $st['hour']);
+      $et['min'] = (array_key_exists('min',$e->duration['value']) ? $st['min']+$e->duration['value']['min'] : $st['min']);
+      $et['sec'] = (array_key_exists('sec',$e->duration['value']) ? $st['sec']+$e->duration['value']['sec'] : $st['sec']);
+      $et['month'] = (array_key_exists('month',$e->duration['value']) ? $st['month']+$e->duration['value']['month'] : $st['month']);
+      $et['day'] = (array_key_exists('day',$e->duration['value']) ? $st['day']+$e->duration['value']['day'] : $st['day']);
+      $et['year'] = (array_key_exists('year',$e->duration['value']) ? $st['year']+$e->duration['value']['year'] : $st['year']);
+          
+      $el['et_ts'] = mktime(
+        $et['hour'],$et['min'],$et['sec'],
+        $et['month'],$et['day'],$et['year']
+      );
+
+      $el['et_ts_adj'] = mktime(
+        $et['hour'],$et['min'],$et['sec'],
+        $et['month'],$et['day-1'],$et['year']
+      );
+
+      $el['et_exists'] = true;
+    } else {
+      $el['et_exists'] = false;
+    }
+    
+    // Check if start and end time are the same?
+    if ($el['st_exists'] && $el['et_exists']) {
+        // If the start and end dates match then set samedate flag
+        // Check for the case of an all day event that lasts exactly one day
+        if (($st['year'] == $et['year'] && $st['month'] == $et['month'] && $st['day'] == $et['day']) || $el['st_ts'] == $el['et_ts_adj']) {
+            $el['samedate'] = true;
+        } else {
+            $el['samedate'] = false;
+        }
+
+        if ($st['hour'] == $et['hour'] && $st['min'] == $et['min'] && $st['sec'] == $et['sec']) {
+            $el['sametime'] = true;
+        } else {
+            $el['sametime'] = false;
+        }
+    } else {
+        $el['samedate'] = true;
+        $el['sametime'] = false;
+    }
+    
+    // All day events start and end at 00:00:00. The start day is the first day. The end day
+    // is the day after the last day.
+    if ($el['sametime'] && $st['hour'] == 0 && $st['min'] == 0 && $st['sec'] == 0) {
+        $el['allday'] = true;
+    } else {
+        $el['allday'] = false;
     }
 
-    if (is_array($e->dtend)) {
-      $el['et_year'] = $e->dtend['value']['year'];
-      $el['et_month'] = $e->dtend['value']['month'];
-      $el['et_day'] = $e->dtend['value']['day'];
-      $el['et_hour'] = $e->dtend['value']['hour'];
-      $el['et_min'] = $e->dtend['value']['min'];
-      $el['et_sec'] = $e->dtend['value']['sec'];
-    } else if (is_array($e->duration)) {
-      // Calculate end time based on duration
-      $ts = mktime(
-        $el['st_hour']+$e->duration['value']['hour'],
-        $el['st_min']+$e->duration['value']['min'],
-        $el['st_sec']+$e->duration['value']['sec'],
-        $el['st_month'],
-        $el['st_day'],
-        $el['st_year']
-      );
-      $el['et_year'] = date("Y",$ts);
-      $el['et_month'] = date("m",$ts);
-      $el['et_day'] = date("d",$ts);
-      $el['et_hour'] = date("H",$ts);
-      $el['et_min'] = date("i",$ts);
-      $el['et_sec'] = date("s",$ts);
-    } else {
-      // TODO: problem!
-    }
     return $el;
 }
 

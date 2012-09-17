@@ -5,3 +5,22 @@ td.bedework_datetime {
 td.bedework_label {
   vertical-align: top;
 }
+
+/* Default List Styles */
+li.bedework_list_event,
+li.bedework_list_event li{
+    list-style: none;
+}
+
+li.bedework_list_event {
+    margin-bottom: 10px;
+}
+
+#block-hum-bedework-hum-bedework-teaser ol {
+    padding: 0px;
+}
+
+span.bedework_list_date,
+span.bedework_list_time {
+  white-space: nowrap;
+}
