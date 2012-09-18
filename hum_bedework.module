@@ -520,7 +520,7 @@ function hum_bedework_parse_cal_event($e) {
       $el['description'] = "";
     }
 
-    var_dump($e);
+    //var_dump($e);
 
     $st = array();
 
