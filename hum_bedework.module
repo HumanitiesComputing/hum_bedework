@@ -289,7 +289,7 @@ function hum_bedework_block_generate_teaser_table() {
           'class'=>array('bedework_datetime')
         ),
         array(
-          'data'=>l($cal['title'], "calendar/details/".urlencode($cal['uid']))."<br />$time<br />{$cal['location']}",
+          'data'=>"<span class='bedework_title'>'".l($cal['title'], "calendar/details/".urlencode($cal['uid']))."</span><br /><span class='bedework_time'>$time</span><br /><span class='bedework_location'>{$cal['location']}</span>",
           'class'=>array('bedework_titlelocation'),
         )
       ),
@@ -349,6 +349,7 @@ function hum_bedework_sanitize_time($cal,$type) {
     if ($cal['samedate']) {
         $ret['duration'] = $ret['stime'];
         $ret['sdate_dur'] = $ret['sdate'];
+        $ret['duration_datetime'] = $ret['sdate'] . " " . $ret['stime'];
     } else {
         $ret['duration'] = $ret['stime'] . " - " . $ret['edate'];
         $ret['sdate_dur'] = "Begins {$ret['sdate']}";
@@ -592,7 +593,7 @@ function hum_bedework_parse_cal_event($e) {
 
       $el['et_ts_adj'] = mktime(
         $et['hour'],$et['min'],$et['sec'],
-        $et['month'],$et['day-1'],$et['year']
+        $et['month'],$et['day']-1,$et['year']
       );
 
       $el['et_exists'] = true;
