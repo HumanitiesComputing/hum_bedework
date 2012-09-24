@@ -387,6 +387,7 @@ function hum_bedework_block_generate_teaser_list() {
     $date = $timevals['sdate']; 
 
     $ret['items'][] = array(
+      'data'=>'',
       'class'=>array('bedework_list_event'),
       'children'=>array(
           array(
@@ -404,7 +405,7 @@ function hum_bedework_block_generate_teaser_list() {
       )
     );
   }
-
+    
   return $ret;
 }
 
