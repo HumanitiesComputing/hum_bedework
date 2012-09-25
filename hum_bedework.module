@@ -413,6 +413,7 @@ function hum_bedework_details_page($guid) {
   $cal = hum_bedework_get_cal_event($guid);
 
   $table = array(
+    'attributes' => array('class' => 'hum_bedework_detail_table'),
     'rows' => array(),
     'empty' => 'Event not found'
   );
