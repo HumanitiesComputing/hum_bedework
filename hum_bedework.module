@@ -12,6 +12,8 @@ define('HUM_BEDEWORK_DEFAULT_MAIN_EVENT_COUNT','30');
 define('HUM_BEDEWORK_DEFAULT_TEASER_EVENT_COUNT','5');
 define('HUM_BEDEWORK_DEFAULT_TEASER_STYLE','list');
 
+define('HUM_BEDEWORK_DEFAULT_MAIN_CALENDAR_PATH', 'calendar');
+
 /**
  * Implements hook_help
  *
@@ -44,10 +46,11 @@ function hum_bedework_menu() {
     'type' => MENU_NORMAL_ITEM,
   );
 
-  $items['calendar/details/%'] = array(
+  $calendar_path = variable_get('hum_bedework_main_calendar_path', HUM_BEDEWORK_DEFAULT_MAIN_CALENDAR_PATH);
+
+  $items[$calendar_path.'/details'] = array(
     'title' => 'Event Details',
     'page callback' => 'hum_bedework_details_page',
-    'page arguments' => array(2),
     'access arguments' => array('access content'),
   );
 
@@ -83,6 +86,15 @@ function hum_bedework_form($form, &$form_state) {
     '#default_value' => variable_get('hum_bedework_main_widget_id',""),
     '#size' => 5,
     '#description' => t('The iCal widget id to use for the main calendar.'),
+    '#required' => TRUE,
+  );
+
+  $form['hum_bedework_main']['hum_bedework_main_calendar_path'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Main Calendar Path'),
+    '#default_value' => variable_get('hum_bedework_main_calendar_path',HUM_BEDEWORK_DEFAULT_MAIN_CALENDAR_PATH),
+    '#size' => 32,
+    '#description' => t('The path to the page that displays the main calendar, and the base path for event detail pages. Clear cache after you change this.'),
     '#required' => TRUE,
   );
 
@@ -388,7 +400,8 @@ function hum_bedework_sanitize_time($cal,$type) {
  */
 function hum_bedework_generate_event_link($cal) {
   // Set the default path to start with.
-  $event_path = "calendar/details/".urlencode($cal['uid']);
+  $calendar_path = variable_get('hum_bedework_main_calendar_path', HUM_BEDEWORK_DEFAULT_MAIN_CALENDAR_PATH);
+  $event_path = $calendar_path.'/details/'.urlencode($cal['uid']);
 
   if ( !empty($cal['url']) ) {
     // Has a URL
@@ -456,7 +469,7 @@ function hum_bedework_block_generate_teaser_list() {
   return $ret;
 }
 
-function hum_bedework_details_page($guid) {
+function hum_bedework_details_page($guid='') {
   $cal = hum_bedework_get_cal_event($guid);
 
   $table = array(
@@ -504,7 +517,8 @@ function hum_bedework_details_page($guid) {
     )
   );
 
-  return '<p>' . l('Back to main calendar','calendar') . '</p>' . theme('table',$table);
+  $calendar_path = variable_get('hum_bedework_main_calendar_path', HUM_BEDEWORK_DEFAULT_MAIN_CALENDAR_PATH);
+  return '<p class="bedework_main_calendar_link">' . l('Back to main calendar', $calendar_path) . '</p>' . theme('table',$table);
 }
 
 /**
