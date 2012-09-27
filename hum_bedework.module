@@ -209,16 +209,33 @@ function hum_bedework_block_view($delta = '') {
       if (user_access('access content')) {
         switch (variable_get('hum_bedework_teaser_style',HUM_BEDEWORK_DEFAULT_TEASER_STYLE)) {
           case 'table':
-            $block['content'] = theme('table',hum_bedework_block_generate_teaser_table());
+            $table_array = hum_bedework_block_generate_teaser_table();
+            $block['content'] = theme('table', $table_array);
+            $block['attributes']['has_no_events'] = empty($table_array['items']);
             break;
           case 'list':
-            $block['content'] = theme('item_list',hum_bedework_block_generate_teaser_list());
+            $list_array = hum_bedework_block_generate_teaser_list();
+            $block['content'] = theme('item_list', $list_array);
+            $block['attributes']['has_no_events'] = empty($list_array['items']);
             break;
         }
       }
       break;
   }
   return $block;
+}
+
+/**
+ * Implements hook_preprocess_block()
+ *
+ * Adds CSS classes to block.
+ */
+function hum_bedework_preprocess_block(&$variables) {
+  if ($variables['block']->module == 'hum_bedework' && $variables['block']->delta == 'hum_bedework_teaser') {
+    if ($variables['block']->attributes['has_no_events'] == TRUE) {
+      $variables['classes_array'][] = drupal_html_class('bedework-empty-teaser');
+    }
+  }
 }
 
 /**
@@ -289,7 +306,7 @@ function hum_bedework_block_generate_teaser_table() {
           'class'=>array('bedework_datetime')
         ),
         array(
-          'data'=>"<span class='bedework_title'>'".l($cal['title'], "calendar/details/".urlencode($cal['uid']))."</span><br /><span class='bedework_time'>$time</span><br /><span class='bedework_location'>{$cal['location']}</span>",
+          'data'=>"<span class='bedework_title'>".l($cal['title'], "calendar/details/".urlencode($cal['uid']))."</span><br /><span class='bedework_time'>$time</span><br /><span class='bedework_location'>{$cal['location']}</span>",
           'class'=>array('bedework_titlelocation'),
         )
       ),
