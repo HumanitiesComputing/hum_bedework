@@ -271,7 +271,7 @@ function hum_bedework_block_generate_main() {
           'data'=>"$date<br />$time",
           'class'=>'bedework_datetime'
         ),
-        l($cal['title'], "calendar/details/".urlencode($cal['uid'])).'<br />'.$cal['location'],
+        hum_bedework_generate_event_link($cal).'<br />'.$cal['location'],
         $desc
       )
     );
@@ -306,7 +306,7 @@ function hum_bedework_block_generate_teaser_table() {
           'class'=>array('bedework_datetime')
         ),
         array(
-          'data'=>"<span class='bedework_title'>".l($cal['title'], "calendar/details/".urlencode($cal['uid']))."</span><br /><span class='bedework_time'>$time</span><br /><span class='bedework_location'>{$cal['location']}</span>",
+          'data'=>"<span class='bedework_title'>".hum_bedework_generate_event_link($cal)."</span><br /><span class='bedework_time'>$time</span><br /><span class='bedework_location'>{$cal['location']}</span>",
           'class'=>array('bedework_titlelocation'),
         )
       ),
@@ -381,7 +381,37 @@ function hum_bedework_sanitize_time($cal,$type) {
     return $ret;
 }
 
+/**
+ * Routes to the internal link if event url points to our site. Otherwise to our event detail page.
+ * @param a bedework calendar event array
+ * @return the output of the internal link generator
+ */
+function hum_bedework_generate_event_link($cal) {
+  // Set the default path to start with.
+  $event_path = "calendar/details/".urlencode($cal['uid']);
 
+  if ( !empty($cal['url']) ) {
+    // Has a URL
+    $event_url = parse_url($cal['url']);
+    //drupal_set_message("Event: " . $cal['title'] . " URL:" . $cal['url'], 'warning');
+
+    if ( $event_url && $event_url['host'] ) {   // Has a host
+      $site_host = parse_url($GLOBALS['base_root'], PHP_URL_HOST);  
+      if ($site_host) {   // If we can find our base path
+        $site_host = str_replace("-test", "", $site_host);    // Correct for dev hosts
+        $event_host = str_replace("-test", "", $event_url['host']);
+
+        if ( strcasecmp($site_host, $event_host) == 0 ) {   // If we're linking to our host
+          if ( $event_url['path'] ) {   // And we have a path
+            $event_path = $event_url['path'];   // Then let's link to the local event page.
+          }
+        }
+      }
+    }
+  }
+
+  return l($cal['title'], $event_path);
+}
 
 /**
  * Generates a teaser item list data array suitable for passing to theme_item_list
@@ -408,7 +438,7 @@ function hum_bedework_block_generate_teaser_list() {
       'class'=>array('bedework_list_event'),
       'children'=>array(
           array(
-              'data'=>l($cal['title'], "calendar/details/".urlencode($cal['uid'])),
+              'data'=>hum_bedework_generate_event_link($cal),
               'class'=>array('bedework_list_title'),
           ),
           array(
@@ -457,6 +487,13 @@ function hum_bedework_details_page($guid) {
     'data' => array(
       array('data'=>'Where','class'=>'bedework_label'),
       $cal['location']
+    )
+  );
+
+  $table['rows'][] = array(
+    'data' => array(
+      array('data'=>'Event Website','class'=>'bedework_label'),
+      l( wordwrap($cal['url'], 100), $cal['url'])
     )
   );
 
@@ -533,6 +570,7 @@ function hum_bedework_parse_cal_event($e) {
     $el['title'] = $e->summary['value'];
     $el['location'] = $e->location['value'];
     $el['uid'] = $e->uid['value'];
+    $el['url'] = $e->url['value'];
 
     if (is_array($e->description)) {
       $el['description'] = $e->description[0]['value'];
