@@ -502,13 +502,15 @@ function hum_bedework_details_page($guid='') {
       $cal['location']
     )
   );
-
-  $table['rows'][] = array(
-    'data' => array(
-      array('data'=>'Event Website','class'=>'bedework_label'),
-      l( wordwrap($cal['url'], 100), $cal['url'])
-    )
-  );
+  
+  if ($cal['url'] != "") {
+      $table['rows'][] = array(
+        'data' => array(
+          array('data'=>'Event Website','class'=>'bedework_label'),
+          l( wordwrap($cal['url'], 100), $cal['url'])
+        )
+      );
+  }
 
   $table['rows'][] = array(
     'data' => array(
@@ -584,7 +586,12 @@ function hum_bedework_parse_cal_event($e) {
     $el['title'] = $e->summary['value'];
     $el['location'] = $e->location['value'];
     $el['uid'] = $e->uid['value'];
-    $el['url'] = $e->url['value'];
+    
+    if (is_array($e->url)) {
+        $el['url'] = $e->url['value'];
+    } else {
+        $el['url'] = "";
+    }
 
     if (is_array($e->description)) {
       $el['description'] = $e->description[0]['value'];
