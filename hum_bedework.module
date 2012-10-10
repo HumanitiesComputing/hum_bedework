@@ -280,7 +280,7 @@ function hum_bedework_block_generate_main() {
     $table['rows'][] = array(
       'data' => array(
         array(
-          'data'=>"$date<br />$time",
+          'data'=>"<span class='bedework_date'>$date</span><br /><span class='bedework_time'>$time</span>",
           'class'=>'bedework_datetime'
         ),
         hum_bedework_generate_event_link($cal).'<br />'.$cal['location'],
@@ -324,6 +324,18 @@ function hum_bedework_block_generate_teaser_table() {
       ),
       'class'=>array('bedework_event'),
     );
+  }
+  
+  if (count($table['rows']) > 0) {
+      $table['rows'][] = array(
+        'data' => array(
+            array(
+                'data'=>l("More",variable_get('hum_bedework_main_calendar_path', HUM_BEDEWORK_DEFAULT_MAIN_CALENDAR_PATH)),
+                'colspan'=>2
+            )
+        ),
+        'class' => array('bedework_more')
+      );
   }
 
   return $table;
@@ -465,7 +477,14 @@ function hum_bedework_block_generate_teaser_list() {
       )
     );
   }
-    
+
+  if (count($ret['items']) > 0) {
+    $ret['items'][] = array(
+        'data'=>l("More",variable_get('hum_bedework_main_calendar_path', HUM_BEDEWORK_DEFAULT_MAIN_CALENDAR_PATH)),
+        'class'=>array('bedework_more')
+    );
+  }
+
   return $ret;
 }
 
