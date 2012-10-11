@@ -8,6 +8,7 @@ td.bedework_label {
 
 /* Default List Styles */
 li.bedework_list_event,
+li.bedework_more,
 li.bedework_list_event li{
     list-style: none;
 }
