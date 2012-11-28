@@ -2,6 +2,8 @@
 
 require_once('iCalcreator.class.php');
 
+define('HUM_BEDEWORK_DEFAULT_MAIN_STYLE', 'month');
+
 define('HUM_BEDEWORK_DEFAULT_MAIN_DATE_FORMAT','F d, Y');
 define('HUM_BEDEWORK_DEFAULT_MAIN_TIME_FORMAT','h:i A');
 define('HUM_BEDEWORK_DEFAULT_TEASER_DATE_FORMAT','D, M. d');
@@ -89,6 +91,16 @@ function hum_bedework_form($form, &$form_state) {
     '#required' => TRUE,
   );
 
+  $main_styles = array('table'=>'Table','month'=>'Month');
+  $form['hum_bedework_main']['hum_bedework_main_style'] = array(
+    '#type' => 'select',
+    '#title' => t('Main Calendar Style'),
+    '#default_value' => variable_get('hum_bedework_main_style',HUM_BEDEWORK_DEFAULT_MAIN_STYLE),
+    '#options' => $main_styles,
+    '#description' => t('The style to use for the main calendar.'),
+    '#required' => TRUE,
+  );
+
   $form['hum_bedework_main']['hum_bedework_main_calendar_path'] = array(
     '#type' => 'textfield',
     '#title' => t('Main Calendar Path'),
@@ -149,12 +161,12 @@ function hum_bedework_form($form, &$form_state) {
     '#required' => TRUE,
   );
   
-  $styles = array('table'=>'Table','list'=>'List');
+  $teaser_styles = array('table'=>'Table','list'=>'List');
   $form['hum_bedework_teaser']['hum_bedework_teaser_style'] = array(
     '#type' => 'select',
     '#title' => t('Teaser Style'),
     '#default_value' => variable_get('hum_bedework_teaser_style',HUM_BEDEWORK_DEFAULT_TEASER_STYLE),
-    '#options' => $styles,
+    '#options' => $teaser_styles,
     '#description' => t('The style to use for the calendar teaser.'),
     '#required' => TRUE,
   );
@@ -189,7 +201,7 @@ function hum_bedework_form($form, &$form_state) {
 }
 
 /**
- * Impliments hook_block_info().
+ * Implements hook_block_info().
  */
 function hum_bedework_block_info() {
   $blocks['hum_bedework_main'] = array(
@@ -204,17 +216,27 @@ function hum_bedework_block_info() {
 }
 
 /**
- * Impliments hook_block_view().
+ * Implements hook_block_view().
  *
  * Prepares the contents of the block
  */
 function hum_bedework_block_view($delta = '') {
+  $block['subject'] = '';
   switch($delta){
     case 'hum_bedework_main':
-      $block['subject'] = t('Main Calendar');
-      if (user_access('access content')) {
-        $block['content'] = theme('table',hum_bedework_block_generate_main());
+    $block['subject'] = t('Main Calendar');
+    if (user_access('access content')) {
+      switch (variable_get('hum_bedework_main_style',HUM_BEDEWORK_DEFAULT_MAIN_STYLE)) {
+        case 'table':
+          //print_r(variable_get('hum_bedework_main_style',HUM_BEDEWORK_DEFAULT_MAIN_STYLE) . '   ');
+          $block['content'] = theme('table',hum_bedework_block_generate_main());
+          break;
+        case 'month':
+          //print_r(variable_get('hum_bedework_main_style',HUM_BEDEWORK_DEFAULT_MAIN_STYLE) . '   ');
+          $block['content'] = theme('month',hum_bedework_block_generate_main_month(11));
+          break;
       }
+    }
       break;
     case 'hum_bedework_teaser':
       $block['subject'] = t('Featured Events');
@@ -234,6 +256,7 @@ function hum_bedework_block_view($delta = '') {
       }
       break;
   }
+  //print_r('block is: ' . array_pop($block) . '     ');
   return $block;
 }
 
@@ -243,11 +266,67 @@ function hum_bedework_block_view($delta = '') {
  * Adds CSS classes to block.
  */
 function hum_bedework_preprocess_block(&$variables) {
+  //var_dump($variables);
   if ($variables['block']->module == 'hum_bedework' && $variables['block']->delta == 'hum_bedework_teaser') {
-    if ($variables['block']->attributes['has_no_events'] == TRUE) {
+    if (property_exists($variables['block'],'attributes') && $variables['block']->attributes['has_no_events'] == TRUE) {
       $variables['classes_array'][] = drupal_html_class('bedework-empty-teaser');
     }
   }
+}
+
+/**
+ *
+ */
+function hum_bedework_block_generate_main_month($m) {
+  print_r('hum_bedework_block_generate_main_month() has been called');
+  $caldat = hum_bedework_get_cal_data(variable_get('hum_bedework_api_key',''),variable_get('hum_bedework_main_widget_id',''));
+
+  $table = array(
+    'header' => array(
+      'Date',
+      'Time',
+      'Title / Location'
+    ),
+    'rows' => array(),
+    'empty' => 'No Events Found'
+  );
+  
+  $prevDate = null;    
+  for ($i = 0; $i < min(count($caldat),variable_get('hum_bedework_main_event_count',count($caldat))); $i++){
+    $cal = $caldat[$i];
+
+    $timevals = hum_bedework_sanitize_time($cal,'main');
+  
+    $time = $timevals['time'];
+    $date = $timevals['sdate_dur'];
+    
+    $datevals = (date_parse_from_format('F d, Y', $date));
+    $month = $datevals['month']; //returns numerical representation of month (1-12)
+    print_r('month is: ' . $month);
+    print_r('m is: ' . $m);
+    if ($month == $m) {
+      print_r('inside month if block');
+      if ($date != $prevDate) {
+        $printDate = array('data'=>"<span class='bedework_date'>$date</span>",'class'=>'bedework_datetime');
+      } else {
+        $printDate = null;
+      }
+
+      $table['rows'][] = array(
+        'data' => array(
+          $printDate,
+          array(
+            'data'=>"<span class='bedework_time'>$time</span>",
+            'class'=>'bedework_datetime'
+          ),
+          hum_bedework_generate_event_link($cal).'<br />'.$cal['location']
+        )
+      );
+      $prevDate = $date;
+    }
+  }
+  //print_r($table);
+  return $table;
 }
 
 /**
@@ -291,6 +370,8 @@ function hum_bedework_block_generate_main() {
 
   return $table;
 }
+
+
 
 /**
  * Generates a teaser table data array suitable for passing to theme_table
@@ -421,7 +502,7 @@ function hum_bedework_generate_event_link($cal) {
     //drupal_set_message("Event: " . $cal['title'] . " URL:" . $cal['url'], 'warning');
 
     if ( $event_url && $event_url['host'] ) {   // Has a host
-      $site_host = parse_url($GLOBALS['base_root'], PHP_URL_HOST);  
+      $site_host = parse_url($GLOBALS['base_root'], PHP_URL_HOST); 
       if ($site_host) {   // If we can find our base path
         $site_host = str_replace("-test", "", $site_host);    // Correct for dev hosts
         $event_host = str_replace("-test", "", $event_url['host']);
@@ -434,7 +515,9 @@ function hum_bedework_generate_event_link($cal) {
       }
     }
   }
-
+  if($event_path == '/calendar/'){ // if event does not have an internal page ($event_path still is the default), link to its external page
+    return l($cal['title'], 'http://event.uchicago.edu/maincampus/detail.php?guid=' . $cal['uid']);
+  }
   return l($cal['title'], $event_path);
 }
 
@@ -530,7 +613,16 @@ function hum_bedework_details_page($guid='') {
         )
       );
   }
-
+  
+  if ($cal['contact'] != "") {
+      $table['rows'][] = array(
+        'data' => array(
+          array('data'=>'Contact Information', 'class'=>'bedework_label'),
+          $cal['contact']
+        )
+      );
+  }
+  
   $table['rows'][] = array(
     'data' => array(
       array('data'=>'Description','class'=>'bedework_label'),
@@ -538,6 +630,26 @@ function hum_bedework_details_page($guid='') {
     )
   );
 
+  if ($cal['categories'] != null) {
+    $length = sizeof($cal['categories']);
+    $category_list = "";
+    
+    for($i=0;$i<$length;$i++){
+      if($i == 0){
+        $category_list = $cal['categories'][$i];
+      } else {
+        $category_list = $category_list . ", " . $cal['categories'][$i];
+      }
+    }
+
+    $table['rows'][] = array(
+      'data' => array(
+        array('data'=>'Categories', 'class'=>'bedework_label'),
+        $category_list
+        )
+      );
+  }
+  
   $calendar_path = variable_get('hum_bedework_main_calendar_path', HUM_BEDEWORK_DEFAULT_MAIN_CALENDAR_PATH);
   return '<p class="bedework_main_calendar_link">' . l('Back to main calendar', $calendar_path) . '</p>' . theme('table',$table);
 }
@@ -617,8 +729,23 @@ function hum_bedework_parse_cal_event($e) {
     } else {
       $el['description'] = "";
     }
+    
+    if (is_array($e->contact)) {
+      $el['contact'] = $e->contact[0]['value'];
+    } else  {
+      $el['contact'] = "";
+    }
 
-    //var_dump($e);
+    if (is_array($e->categories)) {
+      $length = sizeof($e->categories);
+      for($i=0;$i<$length;$i++){
+        $el['categories'][$i] = $e->categories[$i]['value'];
+      }
+    } else {
+      $el['categories'] = "";
+    }
+  
+    // var_dump($e); 
 
     $st = array();
 
