@@ -2,7 +2,7 @@
 
 require_once('iCalcreator.class.php');
 
-define('HUM_BEDEWORK_DEFAULT_MAIN_STYLE', 'month');
+define('HUM_BEDEWORK_DEFAULT_MAIN_STYLE', 'table');
 
 define('HUM_BEDEWORK_DEFAULT_MAIN_DATE_FORMAT','F d, Y');
 define('HUM_BEDEWORK_DEFAULT_MAIN_TIME_FORMAT','h:i A');
@@ -228,12 +228,10 @@ function hum_bedework_block_view($delta = '') {
     if (user_access('access content')) {
       switch (variable_get('hum_bedework_main_style',HUM_BEDEWORK_DEFAULT_MAIN_STYLE)) {
         case 'table':
-          //print_r(variable_get('hum_bedework_main_style',HUM_BEDEWORK_DEFAULT_MAIN_STYLE) . '   ');
           $block['content'] = theme('table',hum_bedework_block_generate_main());
           break;
         case 'month':
-          //print_r(variable_get('hum_bedework_main_style',HUM_BEDEWORK_DEFAULT_MAIN_STYLE) . '   ');
-          $block['content'] = theme('month',hum_bedework_block_generate_main_month(11));
+          $block['content'] = theme('table',hum_bedework_block_generate_main_month());
           break;
       }
     }
@@ -256,7 +254,6 @@ function hum_bedework_block_view($delta = '') {
       }
       break;
   }
-  //print_r('block is: ' . array_pop($block) . '     ');
   return $block;
 }
 
@@ -274,11 +271,19 @@ function hum_bedework_preprocess_block(&$variables) {
   }
 }
 
+function cmp_date($d1, $d2) {
+  if ($d1['et_ts_adj'] == $d2['et_ts_adj']) {
+      return 0;
+    }
+    return ($d1['et_ts_adj'] < $d2['et_ts_adj']) ? -1 : 1;
+}
+
 /**
  *
  */
-function hum_bedework_block_generate_main_month($m) {
-  print_r('hum_bedework_block_generate_main_month() has been called');
+function hum_bedework_block_generate_main_month() {
+  $today = date_parse(date('F d, Y'));
+  $m = $today['month'];
   $caldat = hum_bedework_get_cal_data(variable_get('hum_bedework_api_key',''),variable_get('hum_bedework_main_widget_id',''));
 
   $table = array(
@@ -291,41 +296,62 @@ function hum_bedework_block_generate_main_month($m) {
     'empty' => 'No Events Found'
   );
   
-  $prevDate = null;    
+  $prev_date = null;
+  $curr_events = array();
+
   for ($i = 0; $i < min(count($caldat),variable_get('hum_bedework_main_event_count',count($caldat))); $i++){
     $cal = $caldat[$i];
 
     $timevals = hum_bedework_sanitize_time($cal,'main');
-  
-    $time = $timevals['time'];
     $date = $timevals['sdate_dur'];
     
     $datevals = (date_parse_from_format('F d, Y', $date));
     $month = $datevals['month']; //returns numerical representation of month (1-12)
-    print_r('month is: ' . $month);
-    print_r('m is: ' . $m);
     if ($month == $m) {
-      print_r('inside month if block');
-      if ($date != $prevDate) {
+      //add this event to our list
+      array_push($curr_events, $cal);
+    }
+  }
+  //sort events for current month
+  uasort($curr_events, 'cmp_date');
+
+  foreach ($curr_events as $event) {
+    $timevals = hum_bedework_sanitize_time($event,'main');
+    $time = $timevals['time'];
+    $date = $timevals['sdate_dur']; 
+
+    if ($date != $prev_date) {
         $printDate = array('data'=>"<span class='bedework_date'>$date</span>",'class'=>'bedework_datetime');
       } else {
         $printDate = null;
       }
 
-      $table['rows'][] = array(
+    $table['rows'][] = array(
         'data' => array(
           $printDate,
           array(
             'data'=>"<span class='bedework_time'>$time</span>",
             'class'=>'bedework_datetime'
           ),
-          hum_bedework_generate_event_link($cal).'<br />'.$cal['location']
+          hum_bedework_generate_event_link($event).'<br />'.$event['location']
         )
       );
-      $prevDate = $date;
-    }
+
+    $prev_date = $date;
   }
-  //print_r($table);
+
+  $table['rows'][] = array(
+        'data' => array(
+          /*$printDate,
+          array(
+            'data'=>"<span class='bedework_time'>$time</span>",
+            'class'=>'bedework_datetime'
+          ),*/
+          l('Previous', '').'<br />'.l('Next', '')
+        )
+      );
+
+  
   return $table;
 }
 
