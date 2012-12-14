@@ -60,12 +60,6 @@ function hum_bedework_menu() {
     'access arguments' => array('access content'),
     );
 
-  $items[$calendar_path.'/details'] = array(
-    'title' => 'Event Details',
-    'page callback' => 'hum_bedework_details_page',
-    'access arguments' => array('access content'),
-  );
-
   return $items;
 }
 
@@ -595,10 +589,80 @@ function hum_bedework_block_generate_teaser_list() {
   return $ret;
 }
 
-function hum_bedework_main_page($year, $month) {
-  
+/**
+ * This is the page callback for the main calendar. It performs dispatching functionality based
+ * on the arguments and configuration settings.
+ */
+function hum_bedework_main_page($arg1 = NULL, $arg2 = NULL) {
+  // Check if this is a details page and if so draw that using the guid in arg2  
+  if ($arg1 == "details") {
+    return hum_bedework_details_page($arg2);
+  } else {
+    // for all others assume we are drawing the main calendar page. Figure out what style that is
+    // and call the appropriate handler.
+    switch (variable_get('hum_bedework_main_style',HUM_BEDEWORK_DEFAULT_MAIN_STYLE)) {
+      case 'table':
+        return hum_bedework_table_page();
+      case 'month':
+        return hum_bedework_month_page($arg1, $arg2);
+    }
+  }
 
+}
+
+function hum_bedework_table_page() {
   $caldat = hum_bedework_get_cal_data(variable_get('hum_bedework_api_key',''),variable_get('hum_bedework_main_widget_id',''));
+
+  $table = array(
+    'header' => array(
+      'Date / Time',
+      'Title / Location',
+      'Description'
+    ),
+    'rows' => array(),
+    'empty' => 'No Events Found'
+  );
+        
+  for ($i = 0; $i < min(count($caldat),variable_get('hum_bedework_main_event_count',count($caldat))); $i++){
+    $cal = $caldat[$i];
+
+    $timevals = hum_bedework_sanitize_time($cal,'main');
+  
+    $time = $timevals['time'];
+    $date = $timevals['sdate_dur'];
+
+    $desc = str_replace("\\n","<br />",mb_substr($cal['description'],0,variable_get('hum_bedework_main_desc_trim',"200"),'utf-8'))
+            . (mb_strlen($cal['description'],'utf-8') > variable_get('hum_bedework_main_desc_trim',"200") ? "..." : "");
+
+    $table['rows'][] = array(
+      'data' => array(
+        array(
+          'data'=>"<span class='bedework_date'>$date</span><br /><span class='bedework_time'>$time</span>",
+          'class'=>'bedework_datetime'
+        ),
+        hum_bedework_generate_event_link($cal).'<br />'.$cal['location'],
+        $desc
+      )
+    );
+  }
+
+  $content = "";
+  $content .= "<h1>Calendar</h1>";
+  $content .= theme('table',$table);
+
+  return $content;
+}
+
+function hum_bedework_month_page($year, $month) {
+  $caldat = hum_bedework_get_cal_data(variable_get('hum_bedework_api_key',''),variable_get('hum_bedework_main_widget_id',''));
+
+  if ($year === NULL) {
+    $year = HUM_BEDEWORK_DEFAULT_YEAR;
+  }
+
+  if ($month === NULL) {
+    $month = HUM_BEDEWORK_DEFAULT_MONTH;
+  }
 
   $table = array(
     'header' => array(
@@ -676,8 +740,8 @@ function hum_bedework_main_page($year, $month) {
   }
   
   $calendar_path = variable_get('hum_bedework_main_calendar_path', HUM_BEDEWORK_DEFAULT_MAIN_CALENDAR_PATH);
-  $prev = l('Previous', $calendar_path . '/' . $prev_year . '/' . $prev_month);
-  $next = l('Next', $calendar_path . '/' . $next_year . '/' . $next_month);
+  $prev = l(date('F Y',mktime(0,0,0,$prev_month,1,$prev_year)), $calendar_path . '/' . $prev_year . '/' . $prev_month);
+  $next = l(date('F Y',mktime(0,0,0,$next_month,1,$next_year)), $calendar_path . '/' . $next_year . '/' . $next_month);
 
   $current_month = HUM_BEDEWORK_DEFAULT_MONTH;
   $current_year = HUM_BEDEWORK_DEFAULT_YEAR;
@@ -687,7 +751,14 @@ function hum_bedework_main_page($year, $month) {
     $prev = '';
   }
 
-  return  theme('table',$table) . '<p class="bedework_main_calendar_link">' . $prev . '<br />' .  $next . '</p>';
+  $month_name = date('F', mktime(0,0,0,$month,1));
+
+  $content = "";
+  $content .= "<h1>Calendar - $month_name $year</h1>";
+  $content .= theme('table',$table);
+  $content .= "<p class=\"bedework_main_calendar_link\">$prev - $next</p>";
+
+  return $content;
 }
 
 function hum_bedework_details_page($guid='') {
@@ -703,12 +774,12 @@ function hum_bedework_details_page($guid='') {
   
   $desc = str_replace("\\n","<br />",$cal['description']);
 
-  $table['rows'][] = array(
+  /*$table['rows'][] = array(
     'data' => array(
       array('data'=>'Title','class'=>'bedework_label'),
       $cal['title']
     )
-  );
+);*/
 
   $table['rows'][] = array(
     'data' => array(
@@ -768,9 +839,15 @@ function hum_bedework_details_page($guid='') {
         )
       );
   }
-  
+
   $calendar_path = variable_get('hum_bedework_main_calendar_path', HUM_BEDEWORK_DEFAULT_MAIN_CALENDAR_PATH);
-  return '<p class="bedework_main_calendar_link">' . l('Back to main calendar', $calendar_path) . '</p>' . theme('table',$table);
+
+  $content = "";
+  $content .= "<h1>{$cal['title']}</h1>";
+  $content .= theme('table',$table);
+  $content .= "<p class='bedework_main_calendar_link'>".l('Back to main calendar', $calendar_path)."</p>";
+
+  return $content;
 }
 
 /**
