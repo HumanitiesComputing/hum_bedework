@@ -16,6 +16,9 @@ define('HUM_BEDEWORK_DEFAULT_TEASER_STYLE','list');
 
 define('HUM_BEDEWORK_DEFAULT_MAIN_CALENDAR_PATH', 'calendar');
 
+define('HUM_BEDEWORK_DEFAULT_MONTH', get_date_part('month'));
+define('HUM_BEDEWORK_DEFAULT_YEAR', get_date_part('year'));
+
 /**
  * Implements hook_help
  *
@@ -49,6 +52,13 @@ function hum_bedework_menu() {
   );
 
   $calendar_path = variable_get('hum_bedework_main_calendar_path', HUM_BEDEWORK_DEFAULT_MAIN_CALENDAR_PATH);
+
+  $items[$calendar_path.'/%/%'] = array(
+    'title' => 'Calendar',
+    'page callback' => 'hum_bedework_main_page',
+    'page arguments' => array(1,2),
+    'access arguments' => array('access content'),
+    );
 
   $items[$calendar_path.'/details'] = array(
     'title' => 'Event Details',
@@ -282,9 +292,8 @@ function cmp_date($d1, $d2) {
  *
  */
 function hum_bedework_block_generate_main_month() {
-  $today = date_parse(date('F d, Y'));
-  $m = $today['month'];
   $caldat = hum_bedework_get_cal_data(variable_get('hum_bedework_api_key',''),variable_get('hum_bedework_main_widget_id',''));
+  $m = HUM_BEDEWORK_DEFAULT_MONTH;
 
   $table = array(
     'header' => array(
@@ -339,18 +348,6 @@ function hum_bedework_block_generate_main_month() {
 
     $prev_date = $date;
   }
-
-  $table['rows'][] = array(
-        'data' => array(
-          /*$printDate,
-          array(
-            'data'=>"<span class='bedework_time'>$time</span>",
-            'class'=>'bedework_datetime'
-          ),*/
-          l('Previous', '').'<br />'.l('Next', '')
-        )
-      );
-
   
   return $table;
 }
@@ -359,6 +356,7 @@ function hum_bedework_block_generate_main_month() {
  *
  */
 function hum_bedework_block_generate_main() {
+  print_r('hum_bedework_block_generate_main() called');
   $caldat = hum_bedework_get_cal_data(variable_get('hum_bedework_api_key',''),variable_get('hum_bedework_main_widget_id',''));
 
   $table = array(
@@ -595,6 +593,101 @@ function hum_bedework_block_generate_teaser_list() {
   }
 
   return $ret;
+}
+
+function hum_bedework_main_page($year, $month) {
+  
+
+  $caldat = hum_bedework_get_cal_data(variable_get('hum_bedework_api_key',''),variable_get('hum_bedework_main_widget_id',''));
+
+  $table = array(
+    'header' => array(
+      'Date',
+      'Time',
+      'Title / Location'
+    ),
+    'rows' => array(),
+    'empty' => 'No Events Found'
+  );
+  
+  $prev_date = null;
+  $curr_events = array();
+
+  for ($i = 0; $i < min(count($caldat),variable_get('hum_bedework_main_event_count',count($caldat))); $i++){
+    $cal = $caldat[$i];
+
+    $timevals = hum_bedework_sanitize_time($cal,'main');
+    $date = $timevals['sdate_dur'];
+    
+    $datevals = (date_parse_from_format('F d, Y', $date));
+    $m = $datevals['month']; //returns numerical representation of month (1-12)
+    $y = $datevals['year'];
+    if ($m == $month && $y == $year) {
+      //add this event to our list
+      array_push($curr_events, $cal);
+    }
+  }
+  //sort events for current month
+  uasort($curr_events, 'cmp_date');
+
+  foreach ($curr_events as $event) {
+    $timevals = hum_bedework_sanitize_time($event,'main');
+    $time = $timevals['time'];
+    $date = $timevals['sdate_dur']; 
+
+    if ($date != $prev_date) {
+        $printDate = array('data'=>"<span class='bedework_date'>$date</span>",'class'=>'bedework_datetime');
+      } else {
+        $printDate = null;
+      }
+
+    $table['rows'][] = array(
+        'data' => array(
+          $printDate,
+          array(
+            'data'=>"<span class='bedework_time'>$time</span>",
+            'class'=>'bedework_datetime'
+          ),
+          hum_bedework_generate_event_link($event).'<br />'.$event['location']
+        )
+      );
+
+    $prev_date = $date;
+  }
+
+  //compute previous and next months
+
+  $prev_month = $month;
+  $prev_year = $year;
+  $next_month = $month;
+  $next_year = $year;
+
+  if ($month == 1) { 
+    $prev_month = 12;
+    $prev_year = $year - 1;
+    $next_month = $month + 1; 
+  } else if ($month == 12) { 
+    $next_month = 1;
+    $next_year = $year + 1;
+    $prev_month = $month - 1;
+  } else { 
+    $next_month = $month + 1;
+    $prev_month = $month - 1;
+  }
+  
+  $calendar_path = variable_get('hum_bedework_main_calendar_path', HUM_BEDEWORK_DEFAULT_MAIN_CALENDAR_PATH);
+  $prev = l('Previous', $calendar_path . '/' . $prev_year . '/' . $prev_month);
+  $next = l('Next', $calendar_path . '/' . $next_year . '/' . $next_month);
+
+  $current_month = HUM_BEDEWORK_DEFAULT_MONTH;
+  $current_year = HUM_BEDEWORK_DEFAULT_YEAR;
+
+  //stop 'previous' link from showing if prev date is before today
+  if($month == $current_month && $year == $current_year) {
+    $prev = '';
+  }
+
+  return  theme('table',$table) . '<p class="bedework_main_calendar_link">' . $prev . '<br />' .  $next . '</p>';
 }
 
 function hum_bedework_details_page($guid='') {
@@ -880,5 +973,10 @@ function hum_bedework_parse_cal_event($e) {
     }
 
     return $el;
+}
+
+function get_date_part($part) {
+  $today = date_parse(date('F d, Y'));
+  return $p = $today[$part];
 }
 
