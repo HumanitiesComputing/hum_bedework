@@ -53,12 +53,18 @@ function hum_bedework_menu() {
 
   $calendar_path = variable_get('hum_bedework_main_calendar_path', HUM_BEDEWORK_DEFAULT_MAIN_CALENDAR_PATH);
 
+  $items[$calendar_path] = array(
+    'title' => 'Calendar',
+    'page callback' => 'hum_bedework_main_page',
+    'access arguments' => array('access content'),
+  );
+
   $items[$calendar_path.'/%/%'] = array(
     'title' => 'Calendar',
     'page callback' => 'hum_bedework_main_page',
     'page arguments' => array(1,2),
     'access arguments' => array('access content'),
-    );
+  );
 
   return $items;
 }
