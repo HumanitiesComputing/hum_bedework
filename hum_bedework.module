@@ -356,7 +356,7 @@ function hum_bedework_block_generate_main_month() {
  *
  */
 function hum_bedework_block_generate_main() {
-  print_r('hum_bedework_block_generate_main() called');
+  //print_r('hum_bedework_block_generate_main() called');
   $caldat = hum_bedework_get_cal_data(variable_get('hum_bedework_api_key',''),variable_get('hum_bedework_main_widget_id',''));
 
   $table = array(
