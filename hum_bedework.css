@@ -1,9 +1,11 @@
 td.bedework_datetime {
   white-space: nowrap;
+  padding-right: 10px;
 }
 
 td.bedework_label {
   vertical-align: top;
+  padding-right: 10px;
 }
 
 /* Default List Styles */

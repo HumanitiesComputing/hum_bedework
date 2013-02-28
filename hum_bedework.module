@@ -8,9 +8,12 @@ define('HUM_BEDEWORK_DEFAULT_MAIN_DATE_FORMAT','F d, Y');
 define('HUM_BEDEWORK_DEFAULT_MAIN_TIME_FORMAT','h:i A');
 define('HUM_BEDEWORK_DEFAULT_TEASER_DATE_FORMAT','D, M. d');
 define('HUM_BEDEWORK_DEFAULT_TEASER_TIME_FORMAT','h:i A');
+define('HUM_BEDEWORK_DEFAULT_MAIN_END_TIME_DISPLAY', FALSE);
 
 define('HUM_BEDEWORK_DEFAULT_MAIN_DESC_TRIM','200');
 define('HUM_BEDEWORK_DEFAULT_MAIN_EVENT_COUNT','30');
+define('HUM_BEDEWORK_DEFAULT_MAIN_EVENT_DISPLAY', '0');
+define('HUM_BEDEWORK_DEFAULT_MAIN_EVENT_DISPLAY_RANGE', '0.1');
 define('HUM_BEDEWORK_DEFAULT_TEASER_EVENT_COUNT','5');
 define('HUM_BEDEWORK_DEFAULT_TEASER_STYLE','list');
 
@@ -129,6 +132,26 @@ function hum_bedework_form($form, &$form_state) {
     '#required' => TRUE,
   );
 
+  $form['hum_bedework_main']['hum_bedework_main_event_display'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Number of Events to Display'),
+    '#default_value' => variable_get('hum_bedework_main_event_display',HUM_BEDEWORK_DEFAULT_MAIN_EVENT_DISPLAY),
+    '#size' => 5,
+    '#description' => t('About how many events should display at a time. Note that this is not an exact number. 
+      Set to 0 if desire to have events display strictly by month.'),
+    '#required' => TRUE,
+  );
+
+  $form['hum_bedework_main']['hum_bedework_main_event_display_range'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Event Display Range'),
+    '#default_value' => variable_get('hum_bedework_main_event_display_range',HUM_BEDEWORK_DEFAULT_MAIN_EVENT_DISPLAY_RANGE),
+    '#size' => 5,
+    '#description' => t('Set the range (decimal value) for how precise Number of Events to Display should be
+      in the case of not enough events in a single month.'),
+    '#required' => TRUE,
+  );
+
   $form['hum_bedework_main']['hum_bedework_main_desc_trim'] = array(
     '#type' => 'textfield',
     '#title' => t('Description Trim'),
@@ -153,6 +176,13 @@ function hum_bedework_form($form, &$form_state) {
     '#size' => 40,
     '#description' => t('Time format to use for the main calendar. See php time formats for more info.'),
     '#required' => TRUE,
+  );
+
+  $form['hum_bedework_main']['hum_bedework_main_end_time_display'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Display End Time'),
+    '#default_value' => variable_get('hum_bedework_main_end_time_display',HUM_BEDEWORK_DEFAULT_MAIN_END_TIME_DISPLAY),
+    '#description' => t('Check the box to enable event end time display.'), 
   );
 
   $form['hum_bedework_teaser'] = array (
@@ -282,10 +312,26 @@ function hum_bedework_preprocess_block(&$variables) {
 }
 
 function cmp_date($d1, $d2) {
-  if ($d1['et_ts_adj'] == $d2['et_ts_adj']) {
-      return 0;
-    }
-    return ($d1['et_ts_adj'] < $d2['et_ts_adj']) ? -1 : 1;
+  if ($d1['st_ts'] == $d2['st_ts']) {
+    return 0;
+  }
+  return ($d1['st_ts'] < $d2['st_ts']) ? -1 : 1;
+}
+
+function cmp_date_ongoing($d1, $d2) {
+  $date1 = date_parse_from_format('F d, Y', $d1['0']['sdate']);
+  $date2 = date_parse_from_format('F d, Y', $d2['0']['sdate']);
+  $day1 = $date1['day'];
+  $day2 = $date2['day'];
+  $m1 = $date1['month'];
+  $m2 = $date2['month'];
+  $y1 = $date1['year'];
+  $y2 = $date2['year'];
+
+  if ($day1 == $day2 && $m1 == $m2 && $y1 == $y2) {
+    return 0;
+  }
+  return ($m1 < $m2 && $y1 <= $y2 || $day1 < $day2 && $m1 == $m2 && $y1 == $y2) ? -1 : 1;
 }
 
 /**
@@ -498,7 +544,7 @@ function hum_bedework_sanitize_time($cal,$type) {
         $ret['duration_datetime'] = $ret['sdate'] . " " . $ret['stime'];
     } else {
         $ret['duration'] = $ret['stime'] . " - " . $ret['edate'];
-        $ret['sdate_dur'] = "Begins {$ret['sdate']}";
+        $ret['sdate_dur'] = "Begins {$ret['sdate']}"; 
 
         if ($cal['allday']) {
           $ret['duration_datetime'] = "{$ret['sdate']} - {$ret['edate']} (All Day)";
@@ -525,7 +571,7 @@ function hum_bedework_generate_event_link($cal) {
     $event_url = parse_url($cal['url']);
     //drupal_set_message("Event: " . $cal['title'] . " URL:" . $cal['url'], 'warning');
 
-    if ( $event_url && $event_url['host'] ) {   // Has a host
+    if ( $event_url && isset($event_url['host']) ) {   // Has a host
       $site_host = parse_url($GLOBALS['base_root'], PHP_URL_HOST); 
       if ($site_host) {   // If we can find our base path
         $site_host = str_replace("-test", "", $site_host);    // Correct for dev hosts
@@ -600,7 +646,7 @@ function hum_bedework_block_generate_teaser_list() {
  * on the arguments and configuration settings.
  */
 function hum_bedework_main_page($arg1 = NULL, $arg2 = NULL) {
-  // Check if this is a details page and if so draw that using the guid in arg2  
+  // Check if this is a details page and if so draw that using the guid in arg2 
   if ($arg1 == "details") {
     return hum_bedework_details_page($arg2);
   } else {
@@ -616,6 +662,9 @@ function hum_bedework_main_page($arg1 = NULL, $arg2 = NULL) {
 
 }
 
+/*
+ * Displays all events in a single table
+ */
 function hum_bedework_table_page() {
   $caldat = hum_bedework_get_cal_data(variable_get('hum_bedework_api_key',''),variable_get('hum_bedework_main_widget_id',''));
 
@@ -659,16 +708,35 @@ function hum_bedework_table_page() {
   return $content;
 }
 
-function hum_bedework_month_page($year, $month) {
-  $caldat = hum_bedework_get_cal_data(variable_get('hum_bedework_api_key',''),variable_get('hum_bedework_main_widget_id',''));
+/*
+ * checks if an event is an 'ongoing' event (longer than 1 day)
+ * returns length of event in days
+ */
+function ongoing_event($timevals) {
+  
+  $start = $timevals['sdate'];
+  $start_dt = new DateTime($start);
+  $end = $timevals['edate'];
+  $end_dt = new DateTime($end);
 
-  if ($year === NULL) {
-    $year = HUM_BEDEWORK_DEFAULT_YEAR;
-  }
+  $svals = (date_parse_from_format('F d, Y', $start));
+  $evals = (date_parse_from_format('F d, Y', $end));
+  
+  $diff = '';
+  $days = 0;
+  if (($evals['year'] >= $svals['year'] && $evals['month'] > $svals['month']) || 
+    ($evals['year'] >= $svals['year'] && $evals['month'] == $svals['month'] && $evals['day'] > $svals['day'])) {
+    $diff = date_diff($start_dt,$end_dt);
+    $days = $diff->d;
+  } 
+  
+  return $days;
+}
 
-  if ($month === NULL) {
-    $month = HUM_BEDEWORK_DEFAULT_MONTH;
-  }
+/*
+ * draws the ongoing event table given a list of events
+ */ 
+function draw_ongoing_event_table($events) {
 
   $table = array(
     'header' => array(
@@ -679,41 +747,62 @@ function hum_bedework_month_page($year, $month) {
     'rows' => array(),
     'empty' => 'No Events Found'
   );
-  
-  $prev_date = null;
-  $curr_events = array();
 
-  for ($i = 0; $i < min(count($caldat),variable_get('hum_bedework_main_event_count',count($caldat))); $i++){
-    $cal = $caldat[$i];
-
-    $timevals = hum_bedework_sanitize_time($cal,'main');
-    $date = $timevals['sdate_dur'];
-    
-    $datevals = (date_parse_from_format('F d, Y', $date));
-    $m = $datevals['month']; //returns numerical representation of month (1-12)
-    $y = $datevals['year'];
-    if ($m == $month && $y == $year) {
-      //add this event to our list
-      array_push($curr_events, $cal);
-    }
-  }
-  //sort events for current month
-  uasort($curr_events, 'cmp_date');
-
-  foreach ($curr_events as $event) {
-    $timevals = hum_bedework_sanitize_time($event,'main');
-    $time = $timevals['time'];
-    $date = $timevals['sdate_dur']; 
-
-    if ($date != $prev_date) {
-        $printDate = array('data'=>"<span class='bedework_date'>$date</span>",'class'=>'bedework_datetime');
-      } else {
-        $printDate = null;
-      }
+  foreach ($events as $e) {
+    $time = $e['0']['time'];
+    $sdate = $e['0']['sdate'];
+    $edate = $e['0']['edate'];
 
     $table['rows'][] = array(
         'data' => array(
-          $printDate,
+          array('data'=>"<span class='bedework_date'>$sdate - $edate</span>",'class'=>'bedework_datetime'),
+          array(
+            'data'=>"<span class='bedework_time'>$time</span>",
+            'class'=>'bedework_datetime'
+          ),
+          hum_bedework_generate_event_link($e).'<br />'.$e['location']
+        )
+      );
+  }
+
+  $content = "";
+  $content .= "<h2>Ongoing Events</h2>";
+  $content .= theme('table',$table);
+  
+  return $content;
+}
+
+/*
+ * 
+ */
+function draw_current_event_table_helper($curr_events, $t) {
+
+  $table = array(
+    'header' => array(
+      'Date',
+      'Time',
+      'Title / Location'
+    ),
+    'rows' => array(),
+    'empty' => 'No Events Found'
+  );
+
+  $prev_date = null;
+
+  foreach ($curr_events as $event) {
+    $timevals = hum_bedework_sanitize_time($event,'main');
+    $time = $timevals[$t];
+    $date = $timevals['sdate']; 
+
+    if ($date != $prev_date) {
+      $printDate = array('data'=>"<span class='bedework_date'>$date</span>",'class'=>'bedework_datetime');
+    } else {
+      $printDate = null;
+    }
+
+    $table['rows'][] = array(
+      'data' => array(
+        $printDate,
           array(
             'data'=>"<span class='bedework_time'>$time</span>",
             'class'=>'bedework_datetime'
@@ -725,8 +814,100 @@ function hum_bedework_month_page($year, $month) {
     $prev_date = $date;
   }
 
-  //compute previous and next months
+  $content = "";
+  $content .= theme('table',$table);
+  
+  return $content;
+}
 
+/*
+ * draws the current event table given a list of events
+ */ 
+function draw_current_event_table($curr_events) {
+
+  $display_endtime = variable_get('hum_bedework_main_end_time_display',HUM_BEDEWORK_DEFAULT_MAIN_END_TIME_DISPLAY);
+    
+  return ($display_endtime) ? draw_current_event_table_helper($curr_events, 'time') : draw_current_event_table_helper($curr_events, 'stime');
+}
+
+/*
+ * Returns a 2D array for regular and ongoing events
+ */
+function get_event_list($year, $month) {
+  $caldat = hum_bedework_get_cal_data(variable_get('hum_bedework_api_key',''),variable_get('hum_bedework_main_widget_id',''));
+  $all_events = array();
+  $prev_date = null;
+  $today = date('F d, Y');
+  $curr_events = array();
+  $ongoing_events = array();
+
+  for ($i = 0; $i < min(count($caldat),variable_get('hum_bedework_main_event_count',count($caldat))); $i++){
+    $cal = $caldat[$i];
+
+    $timevals = hum_bedework_sanitize_time($cal,'main');
+    $date = $timevals['sdate'];
+    $end_date = $timevals['edate'];
+
+    $datevals = (date_parse_from_format('F d, Y', $date));
+    $end_datevals = (date_parse_from_format('F d, Y', $end_date));
+    $m = $datevals['month']; //returns numerical representation of month (1-12)
+    $end_m = $end_datevals['month'];
+    $y = $datevals['year'];
+    $end_y = $end_datevals['year'];
+    $day = $end_datevals['day'];
+    $e_len = ongoing_event($timevals);
+
+    if ($m == $month && $y == $year) { //this assumes that events will be removed from cal when over
+      //add this event to our list
+      if ($e_len >= 1 && $day >= $today['day']) {
+        //ongoing event
+        array_push($cal,$timevals);
+        array_push($ongoing_events, $cal);
+      } else {
+        //regular event 
+        array_push($curr_events, $cal);
+      }
+    } else if ($end_m >= $month && $end_y >= $year
+                && $m <= $month && $y <= $year && $day >= $today['day'] && $e_len >= 1) { 
+      //check if ongoing event from prev month ends in this or future month
+      array_push($cal,$timevals);
+      array_push($ongoing_events, $cal);
+    }
+  }
+
+  //sort events for current month
+  uasort($curr_events, 'cmp_date');
+
+  array_push($all_events, $curr_events);
+  array_push($all_events, $ongoing_events);
+  
+  return $all_events;
+}
+
+/*
+ * remove duplicate ongoing events (in the case more than 1 month is displayed)
+ */
+function remove_duplicates($events) {
+  $rv = array();
+  $len = count($events);
+  if ($len) {
+    array_push($rv, $events[0]);
+    for ($i = 0; $i < $len;$i++) {
+      $rv_len = count($rv);
+      for ($j = 0; $j < $rv_len; $j++) {
+        if (!(in_array($events[$i],$rv))) {
+          array_push($rv, $events[$i]);
+        }
+      }
+    }
+  }
+  return $rv;
+}
+
+/*
+ * returns prev and next dates for given month and year
+ */
+function compute_prev_next_months($month, $year) {
   $prev_month = $month;
   $prev_year = $year;
   $next_month = $month;
@@ -744,32 +925,125 @@ function hum_bedework_month_page($year, $month) {
     $next_month = $month + 1;
     $prev_month = $month - 1;
   }
-  
-  $calendar_path = variable_get('hum_bedework_main_calendar_path', HUM_BEDEWORK_DEFAULT_MAIN_CALENDAR_PATH);
-  $prev = l(date('F Y',mktime(0,0,0,$prev_month,1,$prev_year)), $calendar_path . '/' . $prev_year . '/' . $prev_month);
-  $next = l(date('F Y',mktime(0,0,0,$next_month,1,$next_year)), $calendar_path . '/' . $next_year . '/' . $next_month);
+  return array($prev_month, $prev_year, $next_month, $next_year);
+}
 
-  $current_month = HUM_BEDEWORK_DEFAULT_MONTH;
-  $current_year = HUM_BEDEWORK_DEFAULT_YEAR;
+/*
+ * option to display additional events from future months
+ * if desired display number has not been reached
+ */
+function adjust_event_list($curr_events, $ongoing_events, $month, $year, 
+                          $prev_month, $prev_year, $next_month, $next_year) {
 
-  //stop 'previous' link from showing if prev date is before today
-  if($month == $current_month && $year == $current_year) {
-    $prev = '';
+  $display_num = variable_get('hum_bedework_main_event_display',HUM_BEDEWORK_DEFAULT_MAIN_EVENT_DISPLAY);
+  $display_percent = variable_get('hum_bedework_main_event_display_range',HUM_BEDEWORK_DEFAULT_MAIN_EVENT_DISPLAY_RANGE);
+  if ($display_percent == 0) {
+    $display_percent = HUM_BEDEWORK_DEFAULT_MAIN_EVENT_DISPLAY_RANGE;
   }
 
+  $num_events = count($curr_events) + count($ongoing_events);
+  $additional_events = null;
+  $additional_num = 0;
+
   $month_name = date('F', mktime(0,0,0,$month,1));
+  $title = "<h1>Calendar: $month_name $year</h1>";
+
+  $range = $display_num * $display_percent;
+  while ($num_events < $display_num) {
+    //add more events
+    $additional_events = get_event_list($next_year, $next_month);
+    $additional_num = count($additional_events[0]) + count($additional_events[1]);
+    if ($num_events + $additional_num <= $display_num + $range && $additional_num != 0 ||
+        $num_events + $additional_num >= $display_num - $range && $additional_num != 0) {
+      //append additional events to current event list
+      $curr_events = array_merge($curr_events, $additional_events[0]);
+      $ongoing_events = array_merge($ongoing_events, $additional_events[1]);
+      $next_month_name = date('F', mktime(0,0,0,$next_month,1));
+      $title = "<h1>Calendar: $month_name $year - $next_month_name $next_year</h1>";
+      //get next month, year in case we still don't have enough events -- there's prob more efficient way to do this
+      $next_dates = compute_prev_next_months($next_month, $next_year);
+      $next_month = $next_dates[2];
+      $next_year = $next_dates[3];
+      $num_events += $additional_num;
+    } else {
+      break; //num of events is as close to desired num as it's going to get
+    }
+  }
+  //need to return: curr_events, ongoing & title
+  return array($title, $curr_events, $ongoing_events, $next_month, $next_year);
+}
+
+/*
+ * displays cal page by month for given month, year
+ * defaults to current month, year
+ */
+function hum_bedework_month_page($year, $month) {
+
+  if ($year === NULL) {
+    $year = HUM_BEDEWORK_DEFAULT_YEAR;
+  }
+
+  if ($month === NULL) {
+    $month = HUM_BEDEWORK_DEFAULT_MONTH;
+  }
+
+  $all_events = get_event_list($year, $month);
+  $curr_events = $all_events[0];
+  $ongoing_events = $all_events[1];
+
+  //compute previous and next months
+  $computed_dates = compute_prev_next_months($month, $year);
+  $prev_month = $computed_dates[0];
+  $prev_year = $computed_dates[1];
+  $next_month = $computed_dates[2];
+  $next_year = $computed_dates[3];
+
+  $adjusted_events = adjust_event_list($curr_events, $ongoing_events, $month, $year, $prev_month, $prev_year, $next_month, $next_year);
+  $title = $adjusted_events[0];
+  $curr_events = $adjusted_events[1];
+  $ongoing_events = $adjusted_events[2];
+  $next_month = $adjusted_events[3];
+  $next_year = $adjusted_events[4];
+
+  $ongoing_events = remove_duplicates($ongoing_events);
+  uasort($ongoing_events, 'cmp_date_ongoing');
+  
+  $calendar_path = variable_get('hum_bedework_main_calendar_path', HUM_BEDEWORK_DEFAULT_MAIN_CALENDAR_PATH);
+  //stop previous month link from showing if prev date is before current date
+  $current_month = HUM_BEDEWORK_DEFAULT_MONTH;
+  $current_year = HUM_BEDEWORK_DEFAULT_YEAR;
+  $prev;
+  if($month == $current_month && $year == $current_year) {
+    $prev = '';
+  } else {
+    $prev = l(date('F Y',mktime(0,0,0,$prev_month,1,$prev_year)), $calendar_path . '/' . $prev_year . '/' . $prev_month) . ' -';
+  }
+  $next = l(date('F Y',mktime(0,0,0,$next_month,1,$next_year)), $calendar_path . '/' . $next_year . '/' . $next_month);
+
+  $current = '';
+  if (count($curr_events)) { //hide table if no events--it looks cleaner?
+    $current = draw_current_event_table($curr_events);
+  } else {
+    $current = '<h2>No Events Found</h2>';
+  }
+
+  $ongoing = '';
+  if (count($ongoing_events)) {
+    $ongoing = draw_ongoing_event_table($ongoing_events);
+  }
 
   $content = "";
-  $content .= "<h1>Calendar - $month_name $year</h1>";
-  $content .= theme('table',$table);
-  $content .= "<p class=\"bedework_main_calendar_link\">$prev - $next</p>";
+  $content .= $title;
+  $content .= $current;
+  $content .= $ongoing;
+  $content .= "<p class=\"bedework_main_calendar_link\">$prev $next</p>";
 
   return $content;
 }
 
 function hum_bedework_details_page($guid='') {
   $cal = hum_bedework_get_cal_event($guid);
-
+  
   $table = array(
     'attributes' => array('class' => 'hum_bedework_detail_table'),
     'rows' => array(),
@@ -779,13 +1053,6 @@ function hum_bedework_details_page($guid='') {
   $timevals = hum_bedework_sanitize_time($cal,'main');
   
   $desc = str_replace("\\n","<br />",$cal['description']);
-
-  /*$table['rows'][] = array(
-    'data' => array(
-      array('data'=>'Title','class'=>'bedework_label'),
-      $cal['title']
-    )
-);*/
 
   $table['rows'][] = array(
     'data' => array(
@@ -826,24 +1093,27 @@ function hum_bedework_details_page($guid='') {
     )
   );
 
-  if ($cal['categories'] != null) {
+  if ($cal['categories'] != null) {//hide if event does not have categories
     $length = sizeof($cal['categories']);
     $category_list = "";
     
     for($i=0;$i<$length;$i++){
-      if($i == 0){
+      $cat = $cal['categories'][$i];//current category
+      $cmp = strcmp($cat,'Suppress from Main Campus');//hide 'Suppress...' category
+      if(strcmp($category_list,'') == 0 && $cmp != 0){//if no prev categories no comma
         $category_list = $cal['categories'][$i];
-      } else {
+      } else if($cmp != 0){
         $category_list = $category_list . ", " . $cal['categories'][$i];
       }
     }
-
-    $table['rows'][] = array(
+    if(strcmp($category_list,'') !=0){//hide category label if string is empty
+      $table['rows'][] = array(
       'data' => array(
         array('data'=>'Categories', 'class'=>'bedework_label'),
         $category_list
         )
       );
+    }
   }
 
   $calendar_path = variable_get('hum_bedework_main_calendar_path', HUM_BEDEWORK_DEFAULT_MAIN_CALENDAR_PATH);
