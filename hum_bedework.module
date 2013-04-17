@@ -1,13 +1,12 @@
 <?php
 
-require_once('iCalcreator.class.php');
-
 define('HUM_BEDEWORK_DEFAULT_MAIN_STYLE', 'table');
 
 define('HUM_BEDEWORK_DEFAULT_MAIN_DATE_FORMAT','F d, Y');
 define('HUM_BEDEWORK_DEFAULT_MAIN_TIME_FORMAT','h:i A');
 define('HUM_BEDEWORK_DEFAULT_TEASER_DATE_FORMAT','D, M. d');
 define('HUM_BEDEWORK_DEFAULT_TEASER_TIME_FORMAT','h:i A');
+define('HUM_BEDEWORK_MAIN_EVENT_ONGOING_DISPLAY_DURATION', '3');
 define('HUM_BEDEWORK_DEFAULT_MAIN_END_TIME_DISPLAY', FALSE);
 
 define('HUM_BEDEWORK_DEFAULT_MAIN_DESC_TRIM','200');
@@ -62,14 +61,49 @@ function hum_bedework_menu() {
     'access arguments' => array('access content'),
   );
 
+  //count slashes in cal path, then offset args by num
+
+  $path_len = strlen($calendar_path);
+  
+  $slashes = 1;
+  for ($i = 0; $i < $path_len; $i++) {
+    if ($calendar_path[$i] == '/') {
+      $slashes++;
+    }
+  }
+  $arg1 = $slashes;
+  $arg2 = $slashes+1;
+
   $items[$calendar_path.'/%/%'] = array(
     'title' => 'Calendar',
     'page callback' => 'hum_bedework_main_page',
-    'page arguments' => array(1,2),
+    'page arguments' => array($arg1,$arg2),
     'access arguments' => array('access content'),
   );
 
   return $items;
+}
+
+
+/**
+ * Implements hook_libraries_info().
+ */ 
+function hum_bedework_libraries_info() {
+    $libraries['iCalcreator'] = array(
+      'name' => 'iCalcreator',
+      'vendor url' => 'http://kigkonsult.se/iCalcreator/index.php',
+      'download url' => 'http://kigkonsult.se/downloads/index.php#icalcreator',
+      'version arguments' => array(
+        'file' => 'iCalcreator.class.php',
+        'pattern' => "/define\( 'ICALCREATOR_VERSION', 'iCalcreator ([\d\.]+)' \);/",
+        'lines' => 100,
+      ),
+      'files' => array(
+        'php' => array('iCalcreator.class.php'),
+      ),
+    );
+  
+    return $libraries;
 }
 
 
@@ -119,7 +153,7 @@ function hum_bedework_form($form, &$form_state) {
     '#title' => t('Main Calendar Path'),
     '#default_value' => variable_get('hum_bedework_main_calendar_path',HUM_BEDEWORK_DEFAULT_MAIN_CALENDAR_PATH),
     '#size' => 32,
-    '#description' => t('The path to the page that displays the main calendar, and the base path for event detail pages. Clear cache after you change this.'),
+    '#description' => t('The path to the page that displays the main calendar, and the base path for event detail pages. Do not include any leading or trailing slashes ("/"). Clear cache after you change this.'),
     '#required' => TRUE,
   );
 
@@ -149,6 +183,16 @@ function hum_bedework_form($form, &$form_state) {
     '#size' => 5,
     '#description' => t('Set the range (decimal value) for how precise Number of Events to Display should be
       in the case of not enough events in a single month.'),
+    '#required' => TRUE,
+  );
+
+  $form['hum_bedework_main']['hum_bedework_main_event_ongoing_display_duration'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Ongoing Event Duration Display'),
+    '#default_value' => variable_get('hum_bedework_main_event_ongoing_display_duration',HUM_BEDEWORK_MAIN_EVENT_ONGOING_DISPLAY_DURATION),
+    '#size' => 5,
+    '#description' => t('If an ongoing event is less than or equal to this number (days) it will display in the 
+      current event list as well as the ongoing event list.'),
     '#required' => TRUE,
   );
 
@@ -312,26 +356,18 @@ function hum_bedework_preprocess_block(&$variables) {
 }
 
 function cmp_date($d1, $d2) {
-  if ($d1['st_ts'] == $d2['st_ts']) {
+  $date1 = $d1['0']['sdate'];
+  $date2 = $d2['0']['sdate']; 
+  $dt1 = $date1 . ' ' . $d1['0']['stime']; //concatenate date + time
+  $dt2 = $date2 . ' ' . $d2['0']['stime'];
+  $dtvals1 = date_parse_from_format('F d, Y g:i A', $dt1); //parse values
+  $dtvals2 = date_parse_from_format('F d, Y g:i A', $dt2);
+  $time1 = mktime($dtvals1['hour'], $dtvals1['minute'], $dtvals1['second'], $dtvals1['month'], $dtvals1['day'], $dtvals1['year']); //create timestamp
+  $time2 = mktime($dtvals2['hour'], $dtvals2['minute'], $dtvals2['second'], $dtvals2['month'], $dtvals2['day'], $dtvals2['year']);
+  if ($time1 == $time2) {
     return 0;
   }
-  return ($d1['st_ts'] < $d2['st_ts']) ? -1 : 1;
-}
-
-function cmp_date_ongoing($d1, $d2) {
-  $date1 = date_parse_from_format('F d, Y', $d1['0']['sdate']);
-  $date2 = date_parse_from_format('F d, Y', $d2['0']['sdate']);
-  $day1 = $date1['day'];
-  $day2 = $date2['day'];
-  $m1 = $date1['month'];
-  $m2 = $date2['month'];
-  $y1 = $date1['year'];
-  $y2 = $date2['year'];
-
-  if ($day1 == $day2 && $m1 == $m2 && $y1 == $y2) {
-    return 0;
-  }
-  return ($m1 < $m2 && $y1 <= $y2 || $day1 < $day2 && $m1 == $m2 && $y1 == $y2) ? -1 : 1;
+  return ($time1 < $time2) ? -1 : 1;
 }
 
 /**
@@ -361,7 +397,7 @@ function hum_bedework_block_generate_main_month() {
     $date = $timevals['sdate_dur'];
     
     $datevals = (date_parse_from_format('F d, Y', $date));
-    $month = $datevals['month']; //returns numerical representation of month (1-12)
+    $month = $datevals['month'];
     if ($month == $m) {
       //add this event to our list
       array_push($curr_events, $cal);
@@ -402,7 +438,6 @@ function hum_bedework_block_generate_main_month() {
  *
  */
 function hum_bedework_block_generate_main() {
-  //print_r('hum_bedework_block_generate_main() called');
   $caldat = hum_bedework_get_cal_data(variable_get('hum_bedework_api_key',''),variable_get('hum_bedework_main_widget_id',''));
 
   $table = array(
@@ -447,7 +482,9 @@ function hum_bedework_block_generate_main() {
  * Generates a teaser table data array suitable for passing to theme_table
  */
 function hum_bedework_block_generate_teaser_table() {
-  $caldat = hum_bedework_get_cal_data(variable_get('hum_bedework_api_key',''),variable_get('hum_bedework_main_widget_id',''));
+
+  $events = get_teaser_events();
+  $event_count = count($events);
 
   $table = array(
     'header' => array(),
@@ -455,25 +492,21 @@ function hum_bedework_block_generate_teaser_table() {
     'empty' => 'No Events Found'
   );
         
-  for ($i = 0; $i < min(count($caldat),variable_get('hum_bedework_teaser_event_count',count($caldat))); $i++){
-    $cal = $caldat[$i];
-
-    $timevals = hum_bedework_sanitize_time($cal,'teaser');
-    $time = $timevals['time']; 
-    $date = $timevals['sdate']; 
+  for ($i = 0; $i < $event_count; $i++) {
+    $e = $events[$i];
 
     $table['rows'][] = array(
       'data' => array(
         array(
-          'data'=>"$date",
+          'data'=>$e['0']['sdate'],
           'class'=>array('bedework_datetime')
         ),
         array(
-          'data'=>"<span class='bedework_title'>".hum_bedework_generate_event_link($cal)."</span><br /><span class='bedework_time'>$time</span><br /><span class='bedework_location'>{$cal['location']}</span>",
+          'data'=>"<span class='bedework_title'>".hum_bedework_generate_event_link($e)."</span><br /><span class='bedework_time'>{$e['0']['time']}</span><br /><span class='bedework_location'>{$e['location']}</span>",
           'class'=>array('bedework_titlelocation'),
         )
       ),
-      'class'=>array('bedework_event'),
+      'class'=>array('bedework_featured_event'),
     );
   }
   
@@ -591,11 +624,62 @@ function hum_bedework_generate_event_link($cal) {
   return l($cal['title'], $event_path);
 }
 
+
+/*
+ * Returns true if the given event has a 'featured' category
+ */
+function is_featured($event) {
+  $length = count($event['categories']);
+  for ($i = 0; $i < $length; $i++) {
+    $cat = null;
+    if (is_array($event['categories'])) {
+      $cat = $event['categories'][$i];
+    }
+    if (strpos($cat, 'Featured') !== false) { //bool necessary because strpos can return 0 as true
+      return true;
+    }
+  }
+  return false;
+}
+
+/*
+ * Returns a list of 'featured' teaser events
+ */
+function get_teaser_events() {
+  $caldat = hum_bedework_get_cal_data(variable_get('hum_bedework_api_key',''),variable_get('hum_bedework_main_widget_id',''));
+  $total_event_count = count($caldat);
+  $teaser_event_count = variable_get('hum_bedework_teaser_event_count',$total_event_count);
+  $num_events = min($total_event_count,$teaser_event_count);
+  $teaser_events = array();
+
+  $ctr = 0;
+  $event_count = 0;
+  while ($event_count < $num_events) {
+    $event = $caldat[$ctr];
+
+    //only want featured events
+
+    if (is_featured($event)) {
+      $timevals = hum_bedework_sanitize_time($event,'teaser');
+      $time = $timevals['time'];
+      $date = $timevals['sdate'];
+  
+      array_push($event,$timevals);
+      array_push($teaser_events,$event);
+      $event_count++;
+    }
+    $ctr++;
+  }
+  return $teaser_events;
+}
+
 /**
  * Generates a teaser item list data array suitable for passing to theme_item_list
  */
 function hum_bedework_block_generate_teaser_list() {
-  $caldat = hum_bedework_get_cal_data(variable_get('hum_bedework_api_key',''),variable_get('hum_bedework_main_widget_id',''));
+  
+  $events = get_teaser_events();
+  $num_events = count($events);
 
   $ret = array(
     'items' => array(),
@@ -604,27 +688,22 @@ function hum_bedework_block_generate_teaser_list() {
     'class' => 'bedework_list_teaser',
   );
         
-  for ($i = 0; $i < min(count($caldat),variable_get('hum_bedework_teaser_event_count',count($caldat))); $i++){
-    $cal = $caldat[$i];
-
-    $timevals = hum_bedework_sanitize_time($cal,'teaser');
-    $time = $timevals['time'];
-    $date = $timevals['sdate']; 
-
+  for ($i = 0; $i < $num_events; $i++) {  
+    
     $ret['items'][] = array(
       'data'=>'',
-      'class'=>array('bedework_list_event'),
+      'class'=>array('bedework_featured_list_event'),
       'children'=>array(
           array(
-              'data'=>hum_bedework_generate_event_link($cal),
+              'data'=>hum_bedework_generate_event_link($events[$i]),
               'class'=>array('bedework_list_title'),
           ),
           array(
-              'data'=>"<span class='bedework_list_date'>{$date}</span> <span class='bedework_list_time'>{$time}</span>",
+              'data'=>"<span class='bedework_list_date'>{$events[$i]['0']['sdate']}</span> <span class='bedework_list_time'>{$events[$i]['0']['time']}</span>",
               'class'=>array('bedework_list_datetime'),
           ),
           array(
-              'data'=>$cal['location'],
+              'data'=>$events[$i]['location'],
               'class'=>array('bedework_list_location'),
           ),
       )
@@ -666,6 +745,11 @@ function hum_bedework_main_page($arg1 = NULL, $arg2 = NULL) {
  * Displays all events in a single table
  */
 function hum_bedework_table_page() {
+  $display_endtime = variable_get('hum_bedework_main_end_time_display',HUM_BEDEWORK_DEFAULT_MAIN_END_TIME_DISPLAY);
+  return ($display_endtime) ? hum_bedework_table_page_helper('time') : hum_bedework_table_page_helper('stime');
+}
+
+function hum_bedework_table_page_helper($t) {
   $caldat = hum_bedework_get_cal_data(variable_get('hum_bedework_api_key',''),variable_get('hum_bedework_main_widget_id',''));
 
   $table = array(
@@ -677,19 +761,33 @@ function hum_bedework_table_page() {
     'rows' => array(),
     'empty' => 'No Events Found'
   );
-        
-  for ($i = 0; $i < min(count($caldat),variable_get('hum_bedework_main_event_count',count($caldat))); $i++){
+  
+  $max_event_count = variable_get('hum_bedework_main_event_count',count($caldat));
+  $total_event_count = count($caldat);
+
+  for ($i = 0; $i < min($total_event_count,$max_event_count); $i++){
     $cal = $caldat[$i];
 
     $timevals = hum_bedework_sanitize_time($cal,'main');
   
-    $time = $timevals['time'];
+    $time = $timevals[$t];
     $date = $timevals['sdate_dur'];
+
+    if (!strcmp($time, '12:00 AM')) {
+      $time = 'All Day';
+    }
 
     $desc = str_replace("\\n","<br />",mb_substr($cal['description'],0,variable_get('hum_bedework_main_desc_trim',"200"),'utf-8'))
             . (mb_strlen($cal['description'],'utf-8') > variable_get('hum_bedework_main_desc_trim',"200") ? "..." : "");
 
+    $event_class = '';
+    
+    if (is_featured($cal)){
+      $event_class = array('class' => 'hum_bedework_featured');//special class for featured events
+    }
+
     $table['rows'][] = array(
+      'class' => $event_class,
       'data' => array(
         array(
           'data'=>"<span class='bedework_date'>$date</span><br /><span class='bedework_time'>$time</span>",
@@ -724,12 +822,11 @@ function ongoing_event($timevals) {
   
   $diff = '';
   $days = 0;
-  if (($evals['year'] >= $svals['year'] && $evals['month'] > $svals['month']) || 
+  if (($evals['year'] >= $svals['year'] && $evals['month'] > $svals['month']) ||
     ($evals['year'] >= $svals['year'] && $evals['month'] == $svals['month'] && $evals['day'] > $svals['day'])) {
     $diff = date_diff($start_dt,$end_dt);
     $days = $diff->d;
   } 
-  
   return $days;
 }
 
@@ -790,9 +887,12 @@ function draw_current_event_table_helper($curr_events, $t) {
   $prev_date = null;
 
   foreach ($curr_events as $event) {
-    $timevals = hum_bedework_sanitize_time($event,'main');
-    $time = $timevals[$t];
-    $date = $timevals['sdate']; 
+    $time = $event['0'][$t];
+    $date = $event['0']['sdate']; 
+
+    if (!strcmp($time, '12:00 AM')) {
+      $time = 'All Day';
+    }
 
     if ($date != $prev_date) {
       $printDate = array('data'=>"<span class='bedework_date'>$date</span>",'class'=>'bedework_datetime');
@@ -800,7 +900,14 @@ function draw_current_event_table_helper($curr_events, $t) {
       $printDate = null;
     }
 
-    $table['rows'][] = array(
+    $event_class = "";
+    if (is_featured($event)) {
+       $event_class = array('class' => 'hum_bedework_featured');//special class for featured events
+    }
+
+    $table['rows'][] = 
+    array(
+      'class' => $event_class,
       'data' => array(
         $printDate,
           array(
@@ -824,63 +931,99 @@ function draw_current_event_table_helper($curr_events, $t) {
  * draws the current event table given a list of events
  */ 
 function draw_current_event_table($curr_events) {
-
   $display_endtime = variable_get('hum_bedework_main_end_time_display',HUM_BEDEWORK_DEFAULT_MAIN_END_TIME_DISPLAY);
-    
   return ($display_endtime) ? draw_current_event_table_helper($curr_events, 'time') : draw_current_event_table_helper($curr_events, 'stime');
+}
+
+/*
+ * takes a "short" ongoing event and default start date. returns an array of dates from start to event end
+ */ 
+function get_dates($event, $start) { 
+  $dates = array();
+  $event_start = $event['st_ts'];
+  if ($event_start > $start) {
+    $start = $event_start;
+  }
+  $end = $event['et_ts'];
+  $sd = date('F d, Y', $start);
+  for ($next = $start; $next < $end; $next = strtotime('+1 day', $next)) {
+    $nd = date('F d, Y', $next);
+    if ($sd <= $nd) { //can't compare w/ ts because hours, mins, secs won't match
+      array_push($dates, $nd);
+    }
+  }
+  return $dates;
 }
 
 /*
  * Returns a 2D array for regular and ongoing events
  */
-function get_event_list($year, $month) {
+function get_event_list($year, $month) { 
   $caldat = hum_bedework_get_cal_data(variable_get('hum_bedework_api_key',''),variable_get('hum_bedework_main_widget_id',''));
   $all_events = array();
   $prev_date = null;
   $today = date('F d, Y');
+  $curr_datevals = date_parse_from_format('F d, Y', $today);
+  $curr_month = $curr_datevals['month'];
   $curr_events = array();
   $ongoing_events = array();
+  $curr_day = 0;
+  if ($curr_month == $month) {
+    $curr_day = $curr_datevals['day'];
+  } else {
+    $curr_day = 1; //display entire month if get_event_list called for future months
+  }
 
-  for ($i = 0; $i < min(count($caldat),variable_get('hum_bedework_main_event_count',count($caldat))); $i++){
+  $ongoing_as_curr = variable_get('hum_bedework_main_event_ongoing_display_duration',HUM_BEDEWORK_MAIN_EVENT_ONGOING_DISPLAY_DURATION);
+
+  $max_event_count = variable_get('hum_bedework_main_event_count',count($caldat));
+  $total_event_count = count($caldat);
+
+  for ($i = 0; $i < min($total_event_count,$max_event_count); $i++){
     $cal = $caldat[$i];
 
     $timevals = hum_bedework_sanitize_time($cal,'main');
+    array_push($cal,$timevals);
     $date = $timevals['sdate'];
     $end_date = $timevals['edate'];
 
     $datevals = (date_parse_from_format('F d, Y', $date));
     $end_datevals = (date_parse_from_format('F d, Y', $end_date));
-    $m = $datevals['month']; //returns numerical representation of month (1-12)
+    $m = $datevals['month']; //start
     $end_m = $end_datevals['month'];
-    $y = $datevals['year'];
+    $y = $datevals['year'];//start
     $end_y = $end_datevals['year'];
-    $day = $end_datevals['day'];
+    $d = $datevals['day']; //start
+    $end_day = $end_datevals['day']; 
     $e_len = ongoing_event($timevals);
 
-    if ($m == $month && $y == $year) { //this assumes that events will be removed from cal when over
-      //add this event to our list
-      if ($e_len >= 1 && $day >= $today['day']) {
-        //ongoing event
-        array_push($cal,$timevals);
-        array_push($ongoing_events, $cal);
-      } else {
-        //regular event 
-        array_push($curr_events, $cal);
-      }
-    } else if ($end_m >= $month && $end_y >= $year
-                && $m <= $month && $y <= $year && $day >= $today['day'] && $e_len >= 1) { 
-      //check if ongoing event from prev month ends in this or future month
-      array_push($cal,$timevals);
+
+    if ($m == $month && $y == $year && $d >= $curr_day && $e_len <= 0) { //regular event
+      array_push($curr_events, $cal);
+    } else if ($end_m >= $month && $end_y >= $year && $m <= $month && $y <= $year && $end_day >= $curr_day && $e_len > 0 
+                || $m == $month && $y == $year && $e_len > 0 && $end_day >= $curr_day) { //ongoing event
       array_push($ongoing_events, $cal);
+      if ($e_len < $ongoing_as_curr) { //"short" ongoing event
+        $dates;
+        if ($curr_month < $month) {
+          $dates = get_dates($cal, mktime(0,0,0,$month,1,$year)); //get all dates from first of given month/year
+        } else {
+          $dates = get_dates($cal, time()); //get all of the dates from today
+        }
+        $len_dates = count($dates);
+        for ($j = 0; $j < $len_dates; $j++) {
+          $cal['0']['sdate'] = $dates[$j];
+          array_push($curr_events, $cal);
+        }
+      }
     }
   }
 
   //sort events for current month
   uasort($curr_events, 'cmp_date');
-
   array_push($all_events, $curr_events);
   array_push($all_events, $ongoing_events);
-  
+
   return $all_events;
 }
 
@@ -1006,7 +1149,7 @@ function hum_bedework_month_page($year, $month) {
   $next_year = $adjusted_events[4];
 
   $ongoing_events = remove_duplicates($ongoing_events);
-  uasort($ongoing_events, 'cmp_date_ongoing');
+  uasort($ongoing_events, 'cmp_date');
   
   $calendar_path = variable_get('hum_bedework_main_calendar_path', HUM_BEDEWORK_DEFAULT_MAIN_CALENDAR_PATH);
   //stop previous month link from showing if prev date is before current date
@@ -1099,8 +1242,11 @@ function hum_bedework_details_page($guid='') {
     
     for($i=0;$i<$length;$i++){
       $cat = $cal['categories'][$i];//current category
+      if (strpos($cat, 'Featured') !== false) {
+        $table['attributes'] = array('class' => 'hum_bedework_featured_detail_table');//special class for featured events
+      }
       $cmp = strcmp($cat,'Suppress from Main Campus');//hide 'Suppress...' category
-      if(strcmp($category_list,'') == 0 && $cmp != 0){//if no prev categories no comma
+      if(strcmp($category_list,'') == 0 && $cmp != 0){//if no prev categories no comma 
         $category_list = $cal['categories'][$i];
       } else if($cmp != 0){
         $category_list = $category_list . ", " . $cal['categories'][$i];
@@ -1139,9 +1285,9 @@ function hum_bedework_get_cal_data($key,$id) {
     'unique_id' => 'hum_bedework',
     'url' => "http://event.uchicago.edu/widgets/ics.php?key=$key&id=$id"
   );
+  libraries_load('iCalcreator');
   $vcalendar = new vcalendar($config);
   $vcalendar->parse();
-
   $caldat = array();
 
   while ($e = $vcalendar->getComponent('vevent')) {
@@ -1162,7 +1308,7 @@ function hum_bedework_get_cal_event($guid) {
     'unique_id' => 'hum_bedework',
     'url' => "http://event.uchicago.edu/cal/misc/export.gdo?b=de&subid=11&calPath=%2Fpublic%2FuChicago&guid={$guid}&recurrenceId=20120903T183000Z&nocache=no&contentName={$guid}.ics"
   );
-
+  libraries_load('iCalcreator');
   $vcalendar = new vcalendar($config);
   $vcalendar->parse();
 
