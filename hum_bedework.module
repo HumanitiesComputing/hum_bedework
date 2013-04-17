@@ -15,6 +15,7 @@ define('HUM_BEDEWORK_DEFAULT_MAIN_EVENT_DISPLAY', '0');
 define('HUM_BEDEWORK_DEFAULT_MAIN_EVENT_DISPLAY_RANGE', '0.1');
 define('HUM_BEDEWORK_DEFAULT_TEASER_EVENT_COUNT','5');
 define('HUM_BEDEWORK_DEFAULT_TEASER_STYLE','list');
+define('HUM_BEDEWORK_DEFAULT_TEASER_FEATURED_ONLY','false');
 
 define('HUM_BEDEWORK_DEFAULT_MAIN_CALENDAR_PATH', 'calendar');
 
@@ -654,12 +655,16 @@ function get_teaser_events() {
 
   $ctr = 0;
   $event_count = 0;
-  while ($event_count < $num_events) {
+  while ($event_count < $num_events && $ctr < $total_event_count) {
     $event = $caldat[$ctr];
 
     //only want featured events
 
-    if (is_featured($event)) {
+    // TODO: this should be pulled from a configurable variable
+    // Default should be off. 
+    $only_featured = false; 
+
+    if (!$only_featured || is_featured($event)) {
       $timevals = hum_bedework_sanitize_time($event,'teaser');
       $time = $timevals['time'];
       $date = $timevals['sdate'];
