@@ -22,6 +22,15 @@ li.bedework_list_event {
 #block-hum-bedework-hum-bedework-teaser ol {
     padding: 0px;
 }
+#block-hum-bedework-hum-bedework-teaser ol li {
+   list-style-type: disc;
+}
+#block-hum-bedework-hum-bedework-teaser ol li:last-child {
+   list-style-type: none;
+}
+#block-hum-bedework-hum-bedework-teaser ol ol li {
+   list-style-type: none;
+}
 
 span.bedework_list_date,
 span.bedework_list_time {
